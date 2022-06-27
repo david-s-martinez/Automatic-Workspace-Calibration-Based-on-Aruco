@@ -9,7 +9,7 @@ class PlaneDetection:
         PlaneDetection object constructor. Initializes data containers.
         
         """
-        self.id_to_find  = 0
+        self.id_to_find  = 4
         self.marker_size  = 2 #cm
         self.camera_matrix = np.loadtxt(calib_path+'camera_matrix.txt', delimiter=',')
         self.camera_distortion = np.loadtxt(calib_path+'distortion.txt', delimiter=',')
@@ -20,7 +20,7 @@ class PlaneDetection:
         self.homography = None
 
         self.tag_cubes = {
-            '0': np.array([
+            '0': {'cube':[
                 0, 0, 0,
                 grid_w, 0, 0,
                 grid_w, -grid_h, 0,
@@ -28,8 +28,13 @@ class PlaneDetection:
                 0, 0, 3,
                 grid_w, 0, 3,
                 grid_w, -grid_h, 3,
-                0, -grid_h, 3]),
-            '1': np.array([
+                0, -grid_h, 3],
+                'pos':{
+                '1':(1,5),
+                '2':(2,6),
+                '3':(3,7)}},
+
+            '1': {'cube':[
                 0, 0, 0,
                 0, -grid_h, 0,
                 -grid_w, -grid_h, 0,
@@ -37,8 +42,13 @@ class PlaneDetection:
                 0, 0, 3,
                 0, -grid_h, 3,
                 -grid_w, -grid_h, 3,
-                -grid_w, 0, 3]),
-            '2': np.array([
+                -grid_w, 0, 3],
+                'pos':{
+                '2':(1,5),
+                '3':(2,6),
+                '0':(3,7)}},
+
+            '2': {'cube':[
                 0, 0, 0,
                 -grid_w, 0, 0,
                 -grid_w, grid_h, 0,
@@ -46,8 +56,13 @@ class PlaneDetection:
                 0, 0, 3,
                 -grid_w, 0, 3,
                 -grid_w, grid_h, 3,
-                0, grid_h, 3]),
-            '3': np.array([
+                0, grid_h, 3],
+                'pos':{
+                '3':(1,5),
+                '0':(2,6),
+                '1':(3,7)}},
+
+            '3': {'cube':[
                 0, 0, 0,
                 0, grid_h, 0,
                 grid_w, grid_h, 0,
@@ -55,8 +70,13 @@ class PlaneDetection:
                 0, 0, 3,
                 0, grid_h, 3,
                 grid_w, grid_h, 3,
-                grid_w, 0, 3]),
-            '4': np.array([
+                grid_w, 0, 3],
+                'pos':{
+                '0':(1,5),
+                '1':(2,6),
+                '2':(3,7)}},
+
+            '4': {'cube':[
                 -12.75, 7, 0,
                 12.75, 7, 0,
                 12.75, -7, 0,
@@ -64,7 +84,12 @@ class PlaneDetection:
                 -12.75, 7, 3,
                 12.75, 7, 3,
                 12.75, -7, 3,
-                -12.75, -7, 3])
+                -12.75, -7, 3],
+                'pos':{
+                '0':(0,4),
+                '1':(1,5),
+                '2':(2,6),
+                '3':(3,7)}}
             }
 
     def draw_tag_pose(self,image, rvec, tvec, z_rot=-1):
@@ -93,7 +118,7 @@ class PlaneDetection:
                                         (255, 255, 255), 1, cv2.LINE_AA)
 
     def define_world_pts(self,iD):
-        world_points = self.tag_cubes[iD].reshape(-1, 1, 3)
+        world_points = np.array(self.tag_cubes[iD]['cube']).reshape(-1, 1, 3)
         return world_points * 0.5 * self.marker_size
 
     def draw_cube(self,image, iD , rvec, tvec):
@@ -135,32 +160,10 @@ class PlaneDetection:
         self.points_update[pt_idx2] = self.cube_vertices[cube_vert_id][1]
 
     def update_pts_w_id(self, iD):
-        dic={
-            '0': {
-                '1':(1,5),
-                '2':(2,6),
-                '3':(3,7)},
-            '1': {
-                '2':(1,5),
-                '3':(2,6),
-                '0':(3,7)},
-            '2': {
-                '3':(1,5),
-                '0':(2,6),
-                '1':(3,7)},
-            '3': {
-                '0':(1,5),
-                '1':(2,6),
-                '2':(3,7)},
-            '4': {
-                '0':(0,4),
-                '1':(1,5),
-                '2':(2,6),
-                '3':(3,7)}
-            }
+
         for cube_vert_id in self.cube_vertices:
-            if cube_vert_id in dic[iD]:
-                self.rewrite_pts(dic[iD][cube_vert_id], cube_vert_id)
+            if cube_vert_id in self.tag_cubes[iD]['pos']:
+                self.rewrite_pts(self.tag_cubes[iD]['pos'][cube_vert_id], cube_vert_id)
             
     def update_img_pts_dict(self, iD, rvec, tvec):
 
