@@ -97,11 +97,10 @@ class PlaneDetection:
         return world_points * 0.5 * self.marker_size
 
     def draw_cube(self,image, iD , rvec, tvec):
-
         world_points = self.define_world_pts(str(iD), self.marker_size)
         img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
         img_points = np.round(img_points).astype(int)
-        # print(img_points)
+        
         img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)] # -> [(x1,y1),(x2,y2),...] in pixels
 
         cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
@@ -128,6 +127,53 @@ class PlaneDetection:
         img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)]
 
         return img_points[0],img_points[1]
+
+    def rewrite_pts(self, pt_indices, cube_vert_id ):
+        pt_idx1 = pt_indices[0]
+        pt_idx2 = pt_indices[1]
+        self.points_update[pt_idx1] = self.cube_vertices[cube_vert_id][0]
+        self.points_update[pt_idx2] = self.cube_vertices[cube_vert_id][1]
+
+    def update_pts_w_id(self, iD):
+        dic={
+            '0': {
+                '1':(1,5),
+                '2':(2,6),
+                '3':(3,7)},
+            '1': {
+                '2':(1,5),
+                '3':(2,6),
+                '0':(3,7)},
+            '2': {
+                '3':(1,5),
+                '0':(2,6),
+                '1':(3,7)},
+            '3': {
+                '0':(1,5),
+                '1':(2,6),
+                '2':(3,7)},
+            '4': {
+                '0':(0,4),
+                '1':(1,5),
+                '2':(2,6),
+                '3':(3,7)}
+            }
+        for cube_vert_id in self.cube_vertices:
+            if cube_vert_id in dic[iD]:
+                self.rewrite_pts(dic[iD][cube_vert_id], cube_vert_id)
+            
+    def update_img_pts_dict(self, iD, rvec, tvec):
+
+        self.points_update = [None,None,None,None,None,None,None,None]
+        self.update_pts_w_id(iD)
+
+        world_points = self.define_world_pts(iD)
+        img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
+        img_points = np.round(img_points).astype(int)
+        img_points = [ self.points_update[i] if self.points_update[i] else tuple(pt) for i, pt in enumerate(img_points.reshape(-1, 2))] # -> [(x1,y1),(x2,y2),...] in pixels
+        
+        return img_points
+
     def update_img_pts(self,iD, cube_vertices, rvec, tvec):
         
         points_update = [None,None,None,None,None,None,None,None]
@@ -195,13 +241,12 @@ class PlaneDetection:
         img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
         img_points = np.round(img_points).astype(int)
         img_points = [ points_update[i] if points_update[i] else tuple(pt) for i, pt in enumerate(img_points.reshape(-1, 2))] # -> [(x1,y1),(x2,y2),...] in pixels
-        # print(points_update)
+        
         return img_points
 
     def draw_cube_update(self,image, iD, cube_vertices, rvec, tvec):
-        
-        # print(iD)
-        img_points = self.update_img_pts(str(iD), cube_vertices, rvec, tvec)
+        # img_points = self.update_img_pts(str(iD), cube_vertices, rvec, tvec)
+        img_points = self.update_img_pts_dict(str(iD), rvec, tvec)
 
         cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
         cv2.line(image, img_points[1], img_points[2], (255,0,0), 2)
@@ -241,14 +286,14 @@ class PlaneDetection:
                                                             self.tran_vecs[i][0]) 
                                                             for i, tag_id in enumerate(ids)}
             for i, tag_id in enumerate(ids):
-                # print(tag_id)
+                
                 rvec , tvec = self.rot_vecs[i][0], self.tran_vecs[i][0]
                 self.draw_tag_pose(frame, rvec, tvec)
 
                 if tag_id == grid_id:
 
                     plane_img_pts = self.draw_cube_update(frame, str(grid_id), self.cube_vertices, rvec, tvec)
-            
+            print(self.cube_vertices)
             del self.cube_vertices
 	
 calib_path = ""
