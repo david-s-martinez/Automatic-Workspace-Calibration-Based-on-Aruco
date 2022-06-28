@@ -10,6 +10,8 @@ class PlaneDetection:
         PlaneDetection object constructor. Initializes data containers.
         
         """
+        self.grid_w = grid_w
+        self.grid_h = grid_h
         self.id_to_find  = 4
         self.marker_size  = 2 #cm
         self.camera_matrix = np.loadtxt(calib_path+'camera_matrix.txt', delimiter=',')
@@ -143,7 +145,10 @@ class PlaneDetection:
             if adaptive_aspect:
                 warped = cv2.warpPerspective(image, self.homography, (maxWidth, maxHeight))
             else:
-                warped = cv2.warpPerspective(image, self.homography, (width//4, height//4))
+                warped = cv2.warpPerspective(
+                                        image, 
+                                        self.homography, 
+                                        (int(self.grid_w)*10, int(self.grid_h)*10))
             
             return warped
         else:
@@ -403,6 +408,8 @@ while True:
             
     cv2.imshow('frame', frame)
     if frame_warp is not None:
+        w_height, w_width, w_channels = frame_warp.shape
+        frame_warp = cv2.resize(frame_warp, (w_width*4, w_height*4))
         cv2.imshow('frame_warp', frame_warp)
 
     key = cv2.waitKey(1) & 0xFF
