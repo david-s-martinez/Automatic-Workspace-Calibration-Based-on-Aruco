@@ -120,7 +120,7 @@ class PlaneDetection:
             self.homography = None
             return self.homography
     
-    def compute_perspective_trans(self, image):
+    def compute_perspective_trans(self, image, adaptive_aspect = False):
         corners = ['0','1','2','3']
         height, width, channels = image.shape
         
@@ -140,8 +140,10 @@ class PlaneDetection:
             heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
             heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
             maxHeight = max(int(heightA), int(heightB))
-           
-            warped = cv2.warpPerspective(image, self.homography, (maxWidth, maxHeight))
+            if adaptive_aspect:
+                warped = cv2.warpPerspective(image, self.homography, (maxWidth, maxHeight))
+            else:
+                warped = cv2.warpPerspective(image, self.homography, (width//4, height//4))
             
             return warped
         else:
