@@ -180,10 +180,15 @@ class PlaneDetection:
 
     def draw_cube(self,image, iD , rvec, tvec):
         world_points = self.define_world_pts(str(iD), self.marker_size)
-        img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
+        img_points, _ = cv2.projectPoints(
+                                world_points, 
+                                rvec, tvec, 
+                                self.camera_matrix, 
+                                self.camera_distortion)
+
         img_points = np.round(img_points).astype(int)
-        
-        img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)] # -> [(x1,y1),(x2,y2),...] in pixels
+        # img_points = [(x1,y1),(x2,y2),...] in pixels:
+        img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)] 
 
         cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
         cv2.line(image, img_points[1], img_points[2], (255,0,0), 2)
@@ -204,7 +209,12 @@ class PlaneDetection:
             0, 0, -3 * z_rot
         ]).reshape(-1, 1, 3) * 0.5 * self.marker_size
 
-        img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
+        img_points, _ = cv2.projectPoints(
+                                world_points, 
+                                rvec, tvec, 
+                                self.camera_matrix, 
+                                self.camera_distortion)
+
         img_points = np.round(img_points).astype(int)
         img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)]
 
@@ -228,10 +238,16 @@ class PlaneDetection:
         self.update_pts_w_id(iD)
 
         world_points = self.define_world_pts(iD)
-        img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
+        img_points, _ = cv2.projectPoints(
+                                world_points, 
+                                rvec, tvec, 
+                                self.camera_matrix, 
+                                self.camera_distortion)
+
         img_points = np.round(img_points).astype(int)
-        img_points = [ self.points_update[i] if self.points_update[i] else tuple(pt) for i, pt in enumerate(img_points.reshape(-1, 2))] # -> [(x1,y1),(x2,y2),...] in pixels
-        
+        # img_points = [(x1,y1),(x2,y2),...] in pixels:
+        img_points = [self.points_update[i] if self.points_update[i] else tuple(pt) 
+                        for i, pt in enumerate(img_points.reshape(-1, 2))] 
         return img_points
 
     def update_img_pts(self,iD, cube_vertices, rvec, tvec):
@@ -298,10 +314,16 @@ class PlaneDetection:
                 points_update[7] = cube_vertices['3'][1]
 
         world_points = self.define_world_pts(iD)
-        img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
+        img_points, _ = cv2.projectPoints(
+                                world_points, 
+                                rvec, tvec, 
+                                self.camera_matrix, 
+                                self.camera_distortion)
+
         img_points = np.round(img_points).astype(int)
-        img_points = [ points_update[i] if points_update[i] else tuple(pt) for i, pt in enumerate(img_points.reshape(-1, 2))] # -> [(x1,y1),(x2,y2),...] in pixels
-        
+        # img_points = [(x1,y1),(x2,y2),...] in pixels:
+        img_points = [ points_update[i] if points_update[i] else tuple(pt) 
+                        for i, pt in enumerate(img_points.reshape(-1, 2))] 
         return img_points
 
     def draw_cube_update(self,image, iD, cube_vertices, rvec, tvec):
@@ -353,9 +375,12 @@ class PlaneDetection:
 
                 if tag_id == grid_id:
 
-                    plane_img_pts = self.draw_cube_update(frame, str(grid_id), self.cube_vertices, rvec, tvec)
+                    plane_img_pts = self.draw_cube_update(
+                                                    frame, 
+                                                    str(grid_id), 
+                                                    self.cube_vertices, 
+                                                    rvec, tvec)
 
-	
 calib_path = ""
 # grid_w = 23.5
 # grid_h = 13.0
@@ -370,15 +395,15 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 while True:
 
     ret, frame = cap.read()
-    frame_warp = frame.copy()
+    raw_frame = frame.copy()
     pd.detect_tags_3D(frame)
     print(pd.cube_vertices)
     homography = pd.compute_homog()
-    frame_persp_trans = pd.compute_perspective_trans(frame_warp)
+    frame_warp = pd.compute_perspective_trans(raw_frame)
             
     cv2.imshow('frame', frame)
-    if frame_persp_trans is not None:
-        cv2.imshow('frame_persp_trans', frame_persp_trans)
+    if frame_warp is not None:
+        cv2.imshow('frame_warp', frame_warp)
 
     key = cv2.waitKey(1) & 0xFF
 
