@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import cv2.aruco as aruco
 import sys, time, math
+import json
 
 class PlaneDetection:
     def __init__(self, calib_path, grid_w, grid_h,):
@@ -17,7 +18,10 @@ class PlaneDetection:
         self.parameters = cv2.aruco.DetectorParameters_create()
         
         self.cube_vertices = {}
+        self.world_points = {}
         self.homography = None
+        self.world_points_detect = []
+        self.image_points_detect = []
 
         self.tag_cubes = {
             '0': {'cube':[
@@ -91,6 +95,26 @@ class PlaneDetection:
                 '2':(2,6),
                 '3':(3,7)}}
             }
+        self.load_original_points()
+
+    def load_original_points(self):
+        f = open('tray_points.json')
+		# Dict of points in conveyor:
+        self.world_points = json.load(f)
+
+    def compute_homog(self):
+        for tag_id in self.cube_vertices:
+            if tag_id in self.world_points:
+                self.world_points_detect.append(self.world_points[tag_id])
+                self.image_points_detect.append(list(self.cube_vertices[tag_id][0]))
+        is_enough_points_detect = len(self.image_points_detect)>= 4
+        if is_enough_points_detect:
+            self.homography,status = cv2.findHomography(np.array(self.image_points_detect), 
+												np.array(self.world_points_detect))
+            return self.homography
+        else:
+            print("[INFO]: Less than 4 corresponding points found")
+            return self.homography
 
     def draw_tag_pose(self,image, rvec, tvec, z_rot=-1):
         world_points = np.array([
@@ -266,6 +290,7 @@ class PlaneDetection:
         return img_points
     
     def detect_tags_3D(self, frame):
+        self.cube_vertices = {}
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
         corners, ids, rejected = cv2.aruco.detectMarkers(
                                             gray, 
@@ -284,7 +309,7 @@ class PlaneDetection:
             cv2.aruco.drawDetectedMarkers(frame, corners)
             grid_id = ids[0][0]
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
-            self.cube_vertices = {str(tag_id[0]):pd.compute_tag_z_vertices( 
+            self.cube_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
                                                             self.rot_vecs[i][0], 
                                                             self.tran_vecs[i][0]) 
                                                             for i, tag_id in enumerate(ids)}
@@ -296,8 +321,7 @@ class PlaneDetection:
                 if tag_id == grid_id:
 
                     plane_img_pts = self.draw_cube_update(frame, str(grid_id), self.cube_vertices, rvec, tvec)
-            print(self.cube_vertices)
-            del self.cube_vertices
+
 	
 calib_path = ""
 # grid_w = 23.5
@@ -306,7 +330,7 @@ grid_w = 25.5
 grid_h = 14.0
 pd = PlaneDetection(calib_path, grid_w, grid_h)
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(2)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
@@ -315,6 +339,9 @@ while True:
     ret, frame = cap.read()
 
     pd.detect_tags_3D(frame)
+    print(pd.cube_vertices)
+    homography = pd.compute_homog()
+    print(homography)
             
     cv2.imshow('frame', frame)
 
