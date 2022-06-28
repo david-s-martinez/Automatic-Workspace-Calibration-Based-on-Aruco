@@ -103,6 +103,9 @@ class PlaneDetection:
         self.world_points = json.load(f)
 
     def compute_homog(self):
+        self.homography = None
+        self.image_points_detect = []
+        self.world_points_detect = []
         for tag_id in self.cube_vertices:
             if tag_id in self.world_points:
                 self.world_points_detect.append(self.world_points[tag_id])
@@ -113,8 +116,62 @@ class PlaneDetection:
 												np.array(self.world_points_detect))
             return self.homography
         else:
-            print("[INFO]: Less than 4 corresponding points found")
+            # print("[INFO]: Less than 4 corresponding points found")
+            self.homography = None
             return self.homography
+    
+    def compute_perspective_trans(self, image):
+        if self.homography is not None:
+            height, width, channels = image.shape
+            im1Reg = cv2.warpPerspective(image, self.homography, (width, height))
+            return im1Reg
+        else:
+            return image
+
+    def four_point_transform(self, image):
+        # obtain a consistent order of the points and unpack them
+        # individually
+        corners = ['0','1','2','3']
+        height, width, channels = image.shape
+        
+        if self.homography is not None and all(x in self.cube_vertices for x in corners):
+            tl = self.cube_vertices['0'][0]
+            tr = self.cube_vertices['1'][0]
+            br = self.cube_vertices['2'][0]
+            bl = self.cube_vertices['3'][0]
+            rect = (tl, tr, br, bl)
+            # compute the width of the new image, which will be the
+            # maximum distance between bottom-right and bottom-left
+            # x-coordiates or the top-right and top-left x-coordinates
+            widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+            widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+            maxWidth = max(int(widthA), int(widthB))
+            # compute the height of the new image, which will be the
+            # maximum distance between the top-right and bottom-right
+            # y-coordinates or the top-left and bottom-left y-coordinates
+            heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+            heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+            maxHeight = max(int(heightA), int(heightB))
+            # now that we have the dimensions of the new image, construct
+            # the set of destination points to obtain a "birds eye view",
+            # (i.e. top-down view) of the image, again specifying points
+            # in the top-left, top-right, bottom-right, and bottom-left
+            # order
+            # dst = np.array([
+            #     [0, 0],
+            #     [maxWidth - 1, 0],
+            #     [maxWidth - 1, maxHeight - 1],
+            #     [0, maxHeight - 1]], dtype = "float32")
+            # # compute the perspective transform matrix and then apply it
+            # M = cv2.getPerspectiveTransform(rect, dst)
+            warped = cv2.warpPerspective(image, self.homography, (maxWidth, maxHeight))
+            # warped = cv2.resize(warped, (width, height))
+            # return the warped image
+            return warped
+        else:
+            # warped = np.zeros_like(image)
+            # return warped
+            return None
 
     def draw_tag_pose(self,image, rvec, tvec, z_rot=-1):
         world_points = np.array([
@@ -337,13 +394,16 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 while True:
 
     ret, frame = cap.read()
-
+    frame_warp = frame.copy()
     pd.detect_tags_3D(frame)
     print(pd.cube_vertices)
     homography = pd.compute_homog()
     print(homography)
+    frame_persp_trans = pd.four_point_transform(frame_warp)
             
     cv2.imshow('frame', frame)
+    if frame_persp_trans is not None:
+        cv2.imshow('frame_persp_trans', frame_persp_trans)
 
     key = cv2.waitKey(1) & 0xFF
 
