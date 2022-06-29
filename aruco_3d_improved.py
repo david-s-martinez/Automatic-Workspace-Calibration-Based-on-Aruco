@@ -5,12 +5,13 @@ import sys, time, math
 import json
 
 class PlaneDetection:
-    def __init__(self, calib_path, corners):
+    def __init__(self, calib_path, corners, box_z = 3.0):
         """
         PlaneDetection object constructor. Initializes data containers.
         
         """
         self.corners = corners
+        self.box_z = box_z
         self.tray_w = 0
         self.tray_h = 0
         self.id_to_find  = 4
@@ -102,7 +103,24 @@ class PlaneDetection:
                 '2':(2,6),
                 '3':(3,7)}}
             }
+        self.define_template_box_from_tray_pts()
         self.rotate_original_pts()
+
+    def define_box_for_tags(self):
+        pass
+    
+    def define_template_box_from_tray_pts(self):
+        box_3d = np.zeros((8,3))
+        i = 0
+        for (key, vector) in self.tray_world_pts.items():
+            if key in self.corners.values():
+                xyz_pt = np.append(np.array(vector), [0.0])/10
+                box_3d[i] = xyz_pt
+                i+=1
+        lower_box_3d = box_3d[:4,:]
+        box_3d[4:,:] = lower_box_3d
+        box_3d[4:,2] = self.box_z
+        print(box_3d)
     
     def compute_tray_dims(self):
         
@@ -129,8 +147,8 @@ class PlaneDetection:
                     [0.0, math.sin(math.radians(180)), math.cos(math.radians(180))]])
 
         for key, vector in self.tray_world_pts.items():
-            row_3d = np.append(np.array(vector), [0.0])
-            self.tray_world_pts[key] = list(Rot_x @ row_3d)[:2]
+            xyz_pt = np.append(np.array(vector), [0.0])
+            self.tray_world_pts[key] = list(Rot_x @ xyz_pt)[:2]
         print(self.tray_world_pts)
 
     def compute_homog(self):
