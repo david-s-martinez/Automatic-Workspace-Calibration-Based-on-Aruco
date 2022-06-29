@@ -20,9 +20,9 @@ class PlaneDetection:
         self.parameters = cv2.aruco.DetectorParameters_create()
         
         self.cube_vertices = {}
-        self.world_points = {}
+        self.tray_world_pts = {}
         self.homography = None
-        self.world_points_detect = []
+        self.tray_world_pts_detect = []
         self.image_points_detect = []
 
         self.tag_cubes = {
@@ -98,24 +98,36 @@ class PlaneDetection:
                 '3':(3,7)}}
             }
         self.load_original_points()
+        self.rotate_original_pts()
+
+    def rotate_original_pts(self):
+        Rot_x = np.array([
+                    [1.0, 0.0, 0.0],
+                    [0.0, math.cos(math.radians(180)),-math.sin(math.radians(180))],
+                    [0.0, math.sin(math.radians(180)), math.cos(math.radians(180))]])
+
+        for key, vector in self.tray_world_pts.items():
+            row_3d = np.append(np.array(vector), [0.0])
+            self.tray_world_pts[key] = list(Rot_x @ row_3d)
+        print(self.tray_world_pts)
 
     def load_original_points(self):
         f = open('tray_points.json')
 		# Dict of points in conveyor:
-        self.world_points = json.load(f)
+        self.tray_world_pts = json.load(f)
 
     def compute_homog(self):
         self.homography = None
         self.image_points_detect = []
-        self.world_points_detect = []
+        self.tray_world_pts_detect = []
         for tag_id in self.cube_vertices:
-            if tag_id in self.world_points:
-                self.world_points_detect.append(self.world_points[tag_id])
+            if tag_id in self.tray_world_pts:
+                self.tray_world_pts_detect.append(self.tray_world_pts[tag_id])
                 self.image_points_detect.append(list(self.cube_vertices[tag_id][0]))
         is_enough_points_detect = len(self.image_points_detect)>= 4
         if is_enough_points_detect:
             self.homography,status = cv2.findHomography(np.array(self.image_points_detect), 
-												np.array(self.world_points_detect))
+												np.array(self.tray_world_pts_detect))
             return self.homography
         else:
             # print("[INFO]: Less than 4 corresponding points found")
