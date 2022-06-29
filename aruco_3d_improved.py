@@ -19,14 +19,14 @@ class PlaneDetection:
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         self.parameters = cv2.aruco.DetectorParameters_create()
         
-        self.cube_vertices = {}
+        self.box_vertices = {}
         self.tray_world_pts = {}
         self.homography = None
         self.tray_world_pts_detect = []
         self.image_points_detect = []
 
-        self.tag_cubes = {
-            '0': {'cube':[
+        self.tag_boxes = {
+            '0': {'box':[
                 0, 0, 0,
                 grid_w, 0, 0,
                 grid_w, -grid_h, 0,
@@ -40,7 +40,7 @@ class PlaneDetection:
                 '2':(2,6),
                 '3':(3,7)}},
 
-            '1': {'cube':[
+            '1': {'box':[
                 0, 0, 0,
                 0, -grid_h, 0,
                 -grid_w, -grid_h, 0,
@@ -54,7 +54,7 @@ class PlaneDetection:
                 '3':(2,6),
                 '0':(3,7)}},
 
-            '2': {'cube':[
+            '2': {'box':[
                 0, 0, 0,
                 -grid_w, 0, 0,
                 -grid_w, grid_h, 0,
@@ -68,7 +68,7 @@ class PlaneDetection:
                 '0':(2,6),
                 '1':(3,7)}},
 
-            '3': {'cube':[
+            '3': {'box':[
                 0, 0, 0,
                 0, grid_h, 0,
                 grid_w, grid_h, 0,
@@ -82,7 +82,7 @@ class PlaneDetection:
                 '1':(2,6),
                 '2':(3,7)}},
 
-            '4': {'cube':[
+            '4': {'box':[
                 -12.75, 7, 0,
                 12.75, 7, 0,
                 12.75, -7, 0,
@@ -99,6 +99,15 @@ class PlaneDetection:
             }
         self.load_original_points()
         self.rotate_original_pts()
+    
+    def compute_tray_box(self):
+        
+        pass
+
+    def load_original_points(self):
+        f = open('tray_points.json')
+		# Dict of points in conveyor:
+        self.tray_world_pts = json.load(f)
 
     def rotate_original_pts(self):
         Rot_x = np.array([
@@ -108,22 +117,17 @@ class PlaneDetection:
 
         for key, vector in self.tray_world_pts.items():
             row_3d = np.append(np.array(vector), [0.0])
-            self.tray_world_pts[key] = list(Rot_x @ row_3d)
+            self.tray_world_pts[key] = list(Rot_x @ row_3d)[:2]
         print(self.tray_world_pts)
-
-    def load_original_points(self):
-        f = open('tray_points.json')
-		# Dict of points in conveyor:
-        self.tray_world_pts = json.load(f)
 
     def compute_homog(self):
         self.homography = None
         self.image_points_detect = []
         self.tray_world_pts_detect = []
-        for tag_id in self.cube_vertices:
+        for tag_id in self.box_vertices:
             if tag_id in self.tray_world_pts:
                 self.tray_world_pts_detect.append(self.tray_world_pts[tag_id])
-                self.image_points_detect.append(list(self.cube_vertices[tag_id][0]))
+                self.image_points_detect.append(list(self.box_vertices[tag_id][0]))
         is_enough_points_detect = len(self.image_points_detect)>= 4
         if is_enough_points_detect:
             self.homography,status = cv2.findHomography(np.array(self.image_points_detect), 
@@ -138,11 +142,11 @@ class PlaneDetection:
         corners = ['0','1','2','3']
         height, width, channels = image.shape
         
-        if self.homography is not None and all(x in self.cube_vertices for x in corners):
-            tl = self.cube_vertices['0'][0]
-            tr = self.cube_vertices['1'][0]
-            br = self.cube_vertices['2'][0]
-            bl = self.cube_vertices['3'][0]
+        if self.homography is not None and all(x in self.box_vertices for x in corners):
+            tl = self.box_vertices['0'][0]
+            tr = self.box_vertices['1'][0]
+            br = self.box_vertices['2'][0]
+            bl = self.box_vertices['3'][0]
             rect = (tl, tr, br, bl)
             # compute the width of the new image, which will be the
             # maximum distance between bottom-right and bottom-left
@@ -192,10 +196,10 @@ class PlaneDetection:
                                         (255, 255, 255), 1, cv2.LINE_AA)
 
     def define_world_pts(self,iD):
-        world_points = np.array(self.tag_cubes[iD]['cube']).reshape(-1, 1, 3)
+        world_points = np.array(self.tag_boxes[iD]['box']).reshape(-1, 1, 3)
         return world_points * 0.5 * self.marker_size
 
-    def draw_cube(self,image, iD , rvec, tvec):
+    def draw_box(self,image, iD , rvec, tvec):
         world_points = self.define_world_pts(str(iD), self.marker_size)
         img_points, _ = cv2.projectPoints(
                                 world_points, 
@@ -237,17 +241,17 @@ class PlaneDetection:
 
         return img_points[0],img_points[1]
 
-    def rewrite_pts(self, pt_indices, cube_vert_id ):
+    def rewrite_pts(self, pt_indices, box_vert_id ):
         pt_idx1 = pt_indices[0]
         pt_idx2 = pt_indices[1]
-        self.points_update[pt_idx1] = self.cube_vertices[cube_vert_id][0]
-        self.points_update[pt_idx2] = self.cube_vertices[cube_vert_id][1]
+        self.points_update[pt_idx1] = self.box_vertices[box_vert_id][0]
+        self.points_update[pt_idx2] = self.box_vertices[box_vert_id][1]
 
     def update_pts_w_id(self, iD):
 
-        for cube_vert_id in self.cube_vertices:
-            if cube_vert_id in self.tag_cubes[iD]['pos']:
-                self.rewrite_pts(self.tag_cubes[iD]['pos'][cube_vert_id], cube_vert_id)
+        for box_vert_id in self.box_vertices:
+            if box_vert_id in self.tag_boxes[iD]['pos']:
+                self.rewrite_pts(self.tag_boxes[iD]['pos'][box_vert_id], box_vert_id)
             
     def update_img_pts_dict(self, iD, rvec, tvec):
 
@@ -267,68 +271,68 @@ class PlaneDetection:
                         for i, pt in enumerate(img_points.reshape(-1, 2))] 
         return img_points
 
-    def update_img_pts(self,iD, cube_vertices, rvec, tvec):
+    def update_img_pts(self,iD, box_vertices, rvec, tvec):
         
         points_update = [None,None,None,None,None,None,None,None]
-        vert_2_update = list(cube_vertices.keys())
+        vert_2_update = list(box_vertices.keys())
 
         if iD == '0':
             if '1' in vert_2_update:
-                points_update[1] = cube_vertices['1'][0]
-                points_update[5] = cube_vertices['1'][1]
+                points_update[1] = box_vertices['1'][0]
+                points_update[5] = box_vertices['1'][1]
             if '2' in vert_2_update:
-                points_update[2] = cube_vertices['2'][0]
-                points_update[6] = cube_vertices['2'][1]
+                points_update[2] = box_vertices['2'][0]
+                points_update[6] = box_vertices['2'][1]
             if '3' in vert_2_update:
-                points_update[3] = cube_vertices['3'][0]
-                points_update[7] = cube_vertices['3'][1]
+                points_update[3] = box_vertices['3'][0]
+                points_update[7] = box_vertices['3'][1]
             
         if iD == '1':
             if '2' in vert_2_update:
-                points_update[1] = cube_vertices['2'][0]
-                points_update[5] = cube_vertices['2'][1]
+                points_update[1] = box_vertices['2'][0]
+                points_update[5] = box_vertices['2'][1]
             if '3' in vert_2_update:
-                points_update[2] = cube_vertices['3'][0]
-                points_update[6] = cube_vertices['3'][1]
+                points_update[2] = box_vertices['3'][0]
+                points_update[6] = box_vertices['3'][1]
             if '0' in vert_2_update:
-                points_update[3] = cube_vertices['0'][0]
-                points_update[7] = cube_vertices['0'][1]
+                points_update[3] = box_vertices['0'][0]
+                points_update[7] = box_vertices['0'][1]
             
         if iD == '2':
             if '3' in vert_2_update:
-                points_update[1] = cube_vertices['3'][0]
-                points_update[5] = cube_vertices['3'][1]
+                points_update[1] = box_vertices['3'][0]
+                points_update[5] = box_vertices['3'][1]
             if '0' in vert_2_update:
-                points_update[2] = cube_vertices['0'][0]
-                points_update[6] = cube_vertices['0'][1]
+                points_update[2] = box_vertices['0'][0]
+                points_update[6] = box_vertices['0'][1]
             if '1' in vert_2_update:
-                points_update[3] = cube_vertices['1'][0]
-                points_update[7] = cube_vertices['1'][1]
+                points_update[3] = box_vertices['1'][0]
+                points_update[7] = box_vertices['1'][1]
             
         if iD == '3':
             if '0' in vert_2_update:
-                points_update[1] = cube_vertices['0'][0]
-                points_update[5] = cube_vertices['0'][1]
+                points_update[1] = box_vertices['0'][0]
+                points_update[5] = box_vertices['0'][1]
             if '1' in vert_2_update:
-                points_update[2] = cube_vertices['1'][0]
-                points_update[6] = cube_vertices['1'][1]
+                points_update[2] = box_vertices['1'][0]
+                points_update[6] = box_vertices['1'][1]
             if '2' in vert_2_update:
-                points_update[3] = cube_vertices['2'][0]
-                points_update[7] = cube_vertices['2'][1]
+                points_update[3] = box_vertices['2'][0]
+                points_update[7] = box_vertices['2'][1]
             
         if iD == '4':
             if '0' in vert_2_update:
-                points_update[0] = cube_vertices['0'][0]
-                points_update[4] = cube_vertices['0'][1]
+                points_update[0] = box_vertices['0'][0]
+                points_update[4] = box_vertices['0'][1]
             if '1' in vert_2_update:
-                points_update[1] = cube_vertices['1'][0]
-                points_update[5] = cube_vertices['1'][1]
+                points_update[1] = box_vertices['1'][0]
+                points_update[5] = box_vertices['1'][1]
             if '2' in vert_2_update:
-                points_update[2] = cube_vertices['2'][0]
-                points_update[6] = cube_vertices['2'][1]
+                points_update[2] = box_vertices['2'][0]
+                points_update[6] = box_vertices['2'][1]
             if '3' in vert_2_update:
-                points_update[3] = cube_vertices['3'][0]
-                points_update[7] = cube_vertices['3'][1]
+                points_update[3] = box_vertices['3'][0]
+                points_update[7] = box_vertices['3'][1]
 
         world_points = self.define_world_pts(iD)
         img_points, _ = cv2.projectPoints(
@@ -343,8 +347,8 @@ class PlaneDetection:
                         for i, pt in enumerate(img_points.reshape(-1, 2))] 
         return img_points
 
-    def draw_cube_update(self,image, iD, cube_vertices, rvec, tvec):
-        # img_points = self.update_img_pts(str(iD), cube_vertices, rvec, tvec)
+    def draw_box_update(self,image, iD, box_vertices, rvec, tvec):
+        # img_points = self.update_img_pts(str(iD), box_vertices, rvec, tvec)
         img_points = self.update_img_pts_dict(str(iD), rvec, tvec)
 
         cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
@@ -362,7 +366,7 @@ class PlaneDetection:
         return img_points
     
     def detect_tags_3D(self, frame):
-        self.cube_vertices = {}
+        self.box_vertices = {}
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
         corners, ids, rejected = cv2.aruco.detectMarkers(
                                             gray, 
@@ -381,7 +385,7 @@ class PlaneDetection:
             cv2.aruco.drawDetectedMarkers(frame, corners)
             grid_id = ids[0][0]
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
-            self.cube_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
+            self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
                                                             self.rot_vecs[i][0], 
                                                             self.tran_vecs[i][0]) 
                                                             for i, tag_id in enumerate(ids)}
@@ -392,10 +396,10 @@ class PlaneDetection:
 
                 if tag_id == grid_id:
 
-                    plane_img_pts = self.draw_cube_update(
+                    plane_img_pts = self.draw_box_update(
                                                     frame, 
                                                     str(grid_id), 
-                                                    self.cube_vertices, 
+                                                    self.box_vertices, 
                                                     rvec, tvec)
 
 calib_path = ""
@@ -414,7 +418,7 @@ while True:
     ret, frame = cap.read()
     raw_frame = frame.copy()
     pd.detect_tags_3D(frame)
-    print(pd.cube_vertices)
+    print(pd.box_vertices)
     homography = pd.compute_homog()
     frame_warp = pd.compute_perspective_trans(raw_frame)
             
