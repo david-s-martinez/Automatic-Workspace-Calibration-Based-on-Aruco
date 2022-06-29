@@ -5,13 +5,14 @@ import sys, time, math
 import json
 
 class PlaneDetection:
-    def __init__(self, calib_path, grid_w, grid_h,):
+    def __init__(self, calib_path, corners):
         """
         PlaneDetection object constructor. Initializes data containers.
         
         """
-        self.grid_w = grid_w
-        self.grid_h = grid_h
+        self.corners = corners
+        self.tray_w = 0
+        self.tray_h = 0
         self.id_to_find  = 4
         self.marker_size  = 2 #cm
         self.camera_matrix = np.loadtxt(calib_path+'camera_matrix.txt', delimiter=',')
@@ -23,18 +24,22 @@ class PlaneDetection:
         self.tray_world_pts = {}
         self.homography = None
         self.tray_world_pts_detect = []
-        self.image_points_detect = []
+        self.tray_img_pts_detect = []
+        self.load_original_points()
+        self.compute_tray_dims()
+        tray_w = self.tray_w
+        tray_h = self.tray_h
 
         self.tag_boxes = {
             '0': {'box':[
                 0, 0, 0,
-                grid_w, 0, 0,
-                grid_w, -grid_h, 0,
-                0, -grid_h, 0,
+                tray_w, 0, 0,
+                tray_w, -tray_h, 0,
+                0, -tray_h, 0,
                 0, 0, 3,
-                grid_w, 0, 3,
-                grid_w, -grid_h, 3,
-                0, -grid_h, 3],
+                tray_w, 0, 3,
+                tray_w, -tray_h, 3,
+                0, -tray_h, 3],
                 'pos':{
                 '1':(1,5),
                 '2':(2,6),
@@ -42,13 +47,13 @@ class PlaneDetection:
 
             '1': {'box':[
                 0, 0, 0,
-                0, -grid_h, 0,
-                -grid_w, -grid_h, 0,
-                -grid_w, 0, 0,
+                0, -tray_h, 0,
+                -tray_w, -tray_h, 0,
+                -tray_w, 0, 0,
                 0, 0, 3,
-                0, -grid_h, 3,
-                -grid_w, -grid_h, 3,
-                -grid_w, 0, 3],
+                0, -tray_h, 3,
+                -tray_w, -tray_h, 3,
+                -tray_w, 0, 3],
                 'pos':{
                 '2':(1,5),
                 '3':(2,6),
@@ -56,13 +61,13 @@ class PlaneDetection:
 
             '2': {'box':[
                 0, 0, 0,
-                -grid_w, 0, 0,
-                -grid_w, grid_h, 0,
-                0, grid_h, 0,
+                -tray_w, 0, 0,
+                -tray_w, tray_h, 0,
+                0, tray_h, 0,
                 0, 0, 3,
-                -grid_w, 0, 3,
-                -grid_w, grid_h, 3,
-                0, grid_h, 3],
+                -tray_w, 0, 3,
+                -tray_w, tray_h, 3,
+                0, tray_h, 3],
                 'pos':{
                 '3':(1,5),
                 '0':(2,6),
@@ -70,13 +75,13 @@ class PlaneDetection:
 
             '3': {'box':[
                 0, 0, 0,
-                0, grid_h, 0,
-                grid_w, grid_h, 0,
-                grid_w, 0, 0,
+                0, tray_h, 0,
+                tray_w, tray_h, 0,
+                tray_w, 0, 0,
                 0, 0, 3,
-                0, grid_h, 3,
-                grid_w, grid_h, 3,
-                grid_w, 0, 3],
+                0, tray_h, 3,
+                tray_w, tray_h, 3,
+                tray_w, 0, 3],
                 'pos':{
                 '0':(1,5),
                 '1':(2,6),
@@ -97,12 +102,20 @@ class PlaneDetection:
                 '2':(2,6),
                 '3':(3,7)}}
             }
-        self.load_original_points()
         self.rotate_original_pts()
     
-    def compute_tray_box(self):
+    def compute_tray_dims(self):
         
-        pass
+        tl = self.tray_world_pts[self.corners['tl']]
+        tr = self.tray_world_pts[self.corners['tr']]
+        br = self.tray_world_pts[self.corners['br']]
+        bl = self.tray_world_pts[self.corners['bl']]
+        
+        self.tray_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))//10
+        self.tray_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))//10
+
+        print(self.tray_w, self.tray_h)
+        
 
     def load_original_points(self):
         f = open('tray_points.json')
@@ -122,15 +135,15 @@ class PlaneDetection:
 
     def compute_homog(self):
         self.homography = None
-        self.image_points_detect = []
+        self.tray_img_pts_detect = []
         self.tray_world_pts_detect = []
         for tag_id in self.box_vertices:
             if tag_id in self.tray_world_pts:
                 self.tray_world_pts_detect.append(self.tray_world_pts[tag_id])
-                self.image_points_detect.append(list(self.box_vertices[tag_id][0]))
-        is_enough_points_detect = len(self.image_points_detect)>= 4
+                self.tray_img_pts_detect.append(list(self.box_vertices[tag_id][0]))
+        is_enough_points_detect = len(self.tray_img_pts_detect)>= 4
         if is_enough_points_detect:
-            self.homography,status = cv2.findHomography(np.array(self.image_points_detect), 
+            self.homography,status = cv2.findHomography(np.array(self.tray_img_pts_detect), 
 												np.array(self.tray_world_pts_detect))
             return self.homography
         else:
@@ -164,7 +177,7 @@ class PlaneDetection:
                 warped = cv2.warpPerspective(
                                         image, 
                                         self.homography, 
-                                        (int(self.grid_w)*10, int(self.grid_h)*10))
+                                        (int(self.tray_w)*10, int(self.tray_h)*10))
             
             return warped
         else:
@@ -403,11 +416,14 @@ class PlaneDetection:
                                                     rvec, tvec)
 
 calib_path = ""
-# grid_w = 23.5
-# grid_h = 13.0
-grid_w = 25.5
-grid_h = 14.0
-pd = PlaneDetection(calib_path, grid_w, grid_h)
+corners = {
+    'tl' :'0',
+    'tr' :'1',
+    'br' :'2',
+    'bl' :'3'
+    }
+
+pd = PlaneDetection(calib_path, corners)
 
 cap = cv2.VideoCapture(2)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
