@@ -4,6 +4,72 @@ import cv2.aruco as aruco
 import sys, time, math
 import json
 
+class Node:
+    def __init__(self,value = None, next_node = None):
+        self.value = value
+        self.next = next_node
+
+class LinkedList:
+    def __init__(self,head = None):
+        self.head = head
+        self.circular_lenght = None
+
+    def is_head_undefined(self):
+        return self.head is None
+
+    def __str__(self):
+        if self.is_head_undefined():
+            return "Empty linked list"
+        actual_node = self.head
+        list_str = ''
+        if self.circular_lenght is None:
+            while actual_node:
+                list_str += str(actual_node.value)+'-> '
+                actual_node = actual_node.next
+        else:
+            for i in range((self.circular_lenght+1)*2):
+                list_str += str(actual_node.value)+'-> '
+                actual_node = actual_node.next
+        return list_str
+
+    def find_value(self, value):
+        actual_node = self.head
+        while actual_node:
+            if actual_node.value == value:
+                print('Found!')
+                return actual_node
+            actual_node = actual_node.next
+
+    def add_end(self,value):
+        if self.is_head_undefined():
+            self.head = Node(value = value)
+        else:    
+            actual_node = self.head
+            while actual_node:
+                if actual_node.next is None:
+                    actual_node.next = Node(value = value)
+                    break
+                actual_node = actual_node.next
+
+    def make_circular(self):
+        actual_node = self.head
+        i = 0
+        while actual_node:
+            if actual_node.next is None:
+                actual_node.next = self.head
+                self.circular_lenght = i
+                print(self.circular_lenght)
+                break
+            actual_node = actual_node.next
+            i+=1
+    def get_next_n_values(self, value, n):
+        actual_node = self.find_value(value)
+        output = []
+        for i in range(n):
+            output.append(actual_node.value)
+            actual_node = actual_node.next
+        return output
+
 class PlaneDetection:
     def __init__(self, calib_path, corners, box_z = 3.0):
         """
@@ -42,8 +108,17 @@ class PlaneDetection:
                 '1':(2,6),
                 '2':(3,7)}},
             }
-
         self.load_original_points()
+        l_list = LinkedList()
+        #
+        print('adding at start...')
+        for iD in self.corners.values():
+            l_list.add_end(iD)
+            print(l_list)
+        l_list.make_circular()
+        print(l_list)
+        nodes = l_list.get_next_n_values(list(self.corners.values())[2],len(self.corners))
+        print(nodes)
         self.compute_tray_dims()
         self.define_boxes_for_tags()
         self.rotate_original_pts()
@@ -131,15 +206,13 @@ class PlaneDetection:
             return self.homography
     
     def compute_perspective_trans(self, image, adaptive_aspect = False):
-        corners = ['0','1','2','3']
         height, width, channels = image.shape
         
-        if self.homography is not None and all(x in self.box_vertices for x in corners):
-            tl = self.box_vertices['0'][0]
-            tr = self.box_vertices['1'][0]
-            br = self.box_vertices['2'][0]
-            bl = self.box_vertices['3'][0]
-            rect = (tl, tr, br, bl)
+        if self.homography is not None and all(x in self.box_vertices for x in self.corners.values()):
+            tl = self.box_vertices[self.corners['tl']][0]
+            tr = self.box_vertices[self.corners['tr']][0]
+            br = self.box_vertices[self.corners['br']][0]
+            bl = self.box_vertices[self.corners['bl']][0]
             # compute the width of the new image, which will be the
             # maximum distance between bottom-right and bottom-left
             # x-coordiates or the top-right and top-left x-coordinates
@@ -263,7 +336,7 @@ class PlaneDetection:
                         for i, pt in enumerate(img_points.reshape(-1, 2))] 
         return img_points
 
-    def draw_box_update(self,image, iD, box_vertices, rvec, tvec):
+    def draw_box_update(self,image, iD, rvec, tvec):
         img_points = self.update_img_pts(str(iD), rvec, tvec)
 
         cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
@@ -313,8 +386,7 @@ class PlaneDetection:
 
                     plane_img_pts = self.draw_box_update(
                                                     frame, 
-                                                    str(grid_id), 
-                                                    self.box_vertices, 
+                                                    str(grid_id),
                                                     rvec, tvec)
 
 calib_path = ""
