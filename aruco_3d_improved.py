@@ -12,90 +12,67 @@ class PlaneDetection:
         """
         self.corners = corners
         self.box_z = box_z
-        self.tray_w = 0
-        self.tray_h = 0
-        self.id_to_find  = 4
+        self.id_to_find  = 0
         self.marker_size  = 2 #cm
-        self.camera_matrix = np.loadtxt(calib_path+'camera_matrix.txt', delimiter=',')
-        self.camera_distortion = np.loadtxt(calib_path+'distortion.txt', delimiter=',')
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
-        self.parameters = cv2.aruco.DetectorParameters_create()
+        self.homography = None
         
         self.box_vertices = {}
         self.tray_world_pts = {}
-        self.homography = None
         self.tray_world_pts_detect = []
         self.tray_img_pts_detect = []
-        self.load_original_points()
-        self.compute_tray_dims()
-        tray_w = self.tray_w
-        tray_h = self.tray_h
-
         self.tag_boxes = {
             '0': {'box':None,
                 'pos':{
                 '1':(1,5),
                 '2':(2,6),
                 '3':(3,7)}},
-
             '1': {'box':None,
                 'pos':{
                 '2':(1,5),
                 '3':(2,6),
                 '0':(3,7)}},
-
             '2': {'box':None,
                 'pos':{
                 '3':(1,5),
                 '0':(2,6),
                 '1':(3,7)}},
-
             '3': {'box':None,
                 'pos':{
                 '0':(1,5),
                 '1':(2,6),
                 '2':(3,7)}},
-
-            '4': {'box':np.array([
-                -12.75, 7, 0,
-                12.75, 7, 0,
-                12.75, -7, 0,
-                -12.75, -7, 0,
-                -12.75, 7, 3,
-                12.75, 7, 3,
-                12.75, -7, 3,
-                -12.75, -7, 3]).reshape(-1, 1, 3),
-                'pos':{
-                '0':(0,4),
-                '1':(1,5),
-                '2':(2,6),
-                '3':(3,7)}}
             }
+
+        self.load_original_points()
+        self.compute_tray_dims()
         self.define_boxes_for_tags()
         self.rotate_original_pts()
 
+        self.camera_matrix = np.loadtxt(calib_path+'camera_matrix.txt', delimiter=',')
+        self.camera_distortion = np.loadtxt(calib_path+'distortion.txt', delimiter=',')
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.parameters = cv2.aruco.DetectorParameters_create()
+
     def define_boxes_for_tags(self):
-        self.define_template_box_from_tray_pts()
+        self.define_template_tray_base()
         num_pts = len(self.corners)
         i = 0
         for iD, vector in self.tray_world_pts.items():
             if iD in self.corners.values():
-                origin_pos = np.append(np.array(vector), [0.0])/10
-                origin_pos_matrix = np.tile(origin_pos, (num_pts, 1))
-                ground_rect = self.template_box - origin_pos_matrix
+                xyz_pt = np.append(np.array(vector), [0.0])/10
+                xyz_pt_matrix = np.tile(xyz_pt, (num_pts, 1))
+                ground_rect = self.template_tray_base - xyz_pt_matrix
                 ground_rect_up_crop = ground_rect[:i,:]
                 ground_rect_low_crop = ground_rect[i:,:]
                 ground_rect = np.concatenate((ground_rect_low_crop, ground_rect_up_crop), axis=0)
                 box_3d = np.concatenate((ground_rect, ground_rect), axis=0)
                 box_3d[4:,2] = self.box_z
                 self.tag_boxes[iD]['box'] = box_3d
-        
-                print(box_3d)
                 i+=1
 
         print(self.tag_boxes)
     
-    def define_template_box_from_tray_pts(self):
+    def define_template_tray_base(self):
         tray_base = np.zeros((4,3))
         i = 0
         for (key, vector) in self.tray_world_pts.items():
@@ -103,7 +80,7 @@ class PlaneDetection:
                 xyz_pt = np.append(np.array(vector), [0.0])/10
                 tray_base[i] = xyz_pt
                 i+=1
-        self.template_box = tray_base
+        self.template_tray_base = tray_base
         print('Template: \n',tray_base)
     
     def compute_tray_dims(self):
@@ -268,7 +245,7 @@ class PlaneDetection:
             if box_vert_id in self.tag_boxes[iD]['pos']:
                 self.rewrite_pts(self.tag_boxes[iD]['pos'][box_vert_id], box_vert_id)
             
-    def update_img_pts_dict(self, iD, rvec, tvec):
+    def update_img_pts(self, iD, rvec, tvec):
 
         self.points_update = [None,None,None,None,None,None,None,None]
         self.update_pts_w_id(iD)
@@ -286,85 +263,8 @@ class PlaneDetection:
                         for i, pt in enumerate(img_points.reshape(-1, 2))] 
         return img_points
 
-    def update_img_pts(self,iD, box_vertices, rvec, tvec):
-        
-        points_update = [None,None,None,None,None,None,None,None]
-        vert_2_update = list(box_vertices.keys())
-
-        if iD == '0':
-            if '1' in vert_2_update:
-                points_update[1] = box_vertices['1'][0]
-                points_update[5] = box_vertices['1'][1]
-            if '2' in vert_2_update:
-                points_update[2] = box_vertices['2'][0]
-                points_update[6] = box_vertices['2'][1]
-            if '3' in vert_2_update:
-                points_update[3] = box_vertices['3'][0]
-                points_update[7] = box_vertices['3'][1]
-            
-        if iD == '1':
-            if '2' in vert_2_update:
-                points_update[1] = box_vertices['2'][0]
-                points_update[5] = box_vertices['2'][1]
-            if '3' in vert_2_update:
-                points_update[2] = box_vertices['3'][0]
-                points_update[6] = box_vertices['3'][1]
-            if '0' in vert_2_update:
-                points_update[3] = box_vertices['0'][0]
-                points_update[7] = box_vertices['0'][1]
-            
-        if iD == '2':
-            if '3' in vert_2_update:
-                points_update[1] = box_vertices['3'][0]
-                points_update[5] = box_vertices['3'][1]
-            if '0' in vert_2_update:
-                points_update[2] = box_vertices['0'][0]
-                points_update[6] = box_vertices['0'][1]
-            if '1' in vert_2_update:
-                points_update[3] = box_vertices['1'][0]
-                points_update[7] = box_vertices['1'][1]
-            
-        if iD == '3':
-            if '0' in vert_2_update:
-                points_update[1] = box_vertices['0'][0]
-                points_update[5] = box_vertices['0'][1]
-            if '1' in vert_2_update:
-                points_update[2] = box_vertices['1'][0]
-                points_update[6] = box_vertices['1'][1]
-            if '2' in vert_2_update:
-                points_update[3] = box_vertices['2'][0]
-                points_update[7] = box_vertices['2'][1]
-            
-        if iD == '4':
-            if '0' in vert_2_update:
-                points_update[0] = box_vertices['0'][0]
-                points_update[4] = box_vertices['0'][1]
-            if '1' in vert_2_update:
-                points_update[1] = box_vertices['1'][0]
-                points_update[5] = box_vertices['1'][1]
-            if '2' in vert_2_update:
-                points_update[2] = box_vertices['2'][0]
-                points_update[6] = box_vertices['2'][1]
-            if '3' in vert_2_update:
-                points_update[3] = box_vertices['3'][0]
-                points_update[7] = box_vertices['3'][1]
-
-        world_points = self.define_world_pts(iD)
-        img_points, _ = cv2.projectPoints(
-                                world_points, 
-                                rvec, tvec, 
-                                self.camera_matrix, 
-                                self.camera_distortion)
-
-        img_points = np.round(img_points).astype(int)
-        # img_points = [(x1,y1),(x2,y2),...] in pixels:
-        img_points = [ points_update[i] if points_update[i] else tuple(pt) 
-                        for i, pt in enumerate(img_points.reshape(-1, 2))] 
-        return img_points
-
     def draw_box_update(self,image, iD, box_vertices, rvec, tvec):
-        # img_points = self.update_img_pts(str(iD), box_vertices, rvec, tvec)
-        img_points = self.update_img_pts_dict(str(iD), rvec, tvec)
+        img_points = self.update_img_pts(str(iD), rvec, tvec)
 
         cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
         cv2.line(image, img_points[1], img_points[2], (255,0,0), 2)
