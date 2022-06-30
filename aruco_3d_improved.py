@@ -32,63 +32,31 @@ class PlaneDetection:
         tray_h = self.tray_h
 
         self.tag_boxes = {
-            '0': {'box':[
-                0, 0, 0,
-                tray_w, 0, 0,
-                tray_w, -tray_h, 0,
-                0, -tray_h, 0,
-                0, 0, 3,
-                tray_w, 0, 3,
-                tray_w, -tray_h, 3,
-                0, -tray_h, 3],
+            '0': {'box':None,
                 'pos':{
                 '1':(1,5),
                 '2':(2,6),
                 '3':(3,7)}},
 
-            '1': {'box':[
-                0, 0, 0,
-                0, -tray_h, 0,
-                -tray_w, -tray_h, 0,
-                -tray_w, 0, 0,
-                0, 0, 3,
-                0, -tray_h, 3,
-                -tray_w, -tray_h, 3,
-                -tray_w, 0, 3],
+            '1': {'box':None,
                 'pos':{
                 '2':(1,5),
                 '3':(2,6),
                 '0':(3,7)}},
 
-            '2': {'box':[
-                0, 0, 0,
-                -tray_w, 0, 0,
-                -tray_w, tray_h, 0,
-                0, tray_h, 0,
-                0, 0, 3,
-                -tray_w, 0, 3,
-                -tray_w, tray_h, 3,
-                0, tray_h, 3],
+            '2': {'box':None,
                 'pos':{
                 '3':(1,5),
                 '0':(2,6),
                 '1':(3,7)}},
 
-            '3': {'box':[
-                0, 0, 0,
-                0, tray_h, 0,
-                tray_w, tray_h, 0,
-                tray_w, 0, 0,
-                0, 0, 3,
-                0, tray_h, 3,
-                tray_w, tray_h, 3,
-                tray_w, 0, 3],
+            '3': {'box':None,
                 'pos':{
                 '0':(1,5),
                 '1':(2,6),
                 '2':(3,7)}},
 
-            '4': {'box':[
+            '4': {'box':np.array([
                 -12.75, 7, 0,
                 12.75, 7, 0,
                 12.75, -7, 0,
@@ -96,31 +64,47 @@ class PlaneDetection:
                 -12.75, 7, 3,
                 12.75, 7, 3,
                 12.75, -7, 3,
-                -12.75, -7, 3],
+                -12.75, -7, 3]).reshape(-1, 1, 3),
                 'pos':{
                 '0':(0,4),
                 '1':(1,5),
                 '2':(2,6),
                 '3':(3,7)}}
             }
-        self.define_template_box_from_tray_pts()
+        self.define_boxes_for_tags()
         self.rotate_original_pts()
 
-    def define_box_for_tags(self):
-        pass
+    def define_boxes_for_tags(self):
+        self.define_template_box_from_tray_pts()
+        num_pts = len(self.corners)
+        i = 0
+        for iD, vector in self.tray_world_pts.items():
+            if iD in self.corners.values():
+                origin_pos = np.append(np.array(vector), [0.0])/10
+                origin_pos_matrix = np.tile(origin_pos, (num_pts, 1))
+                ground_rect = self.template_box - origin_pos_matrix
+                ground_rect_up_crop = ground_rect[:i,:]
+                ground_rect_low_crop = ground_rect[i:,:]
+                ground_rect = np.concatenate((ground_rect_low_crop, ground_rect_up_crop), axis=0)
+                box_3d = np.concatenate((ground_rect, ground_rect), axis=0)
+                box_3d[4:,2] = self.box_z
+                self.tag_boxes[iD]['box'] = box_3d
+        
+                print(box_3d)
+                i+=1
+
+        print(self.tag_boxes)
     
     def define_template_box_from_tray_pts(self):
-        box_3d = np.zeros((8,3))
+        tray_base = np.zeros((4,3))
         i = 0
         for (key, vector) in self.tray_world_pts.items():
             if key in self.corners.values():
                 xyz_pt = np.append(np.array(vector), [0.0])/10
-                box_3d[i] = xyz_pt
+                tray_base[i] = xyz_pt
                 i+=1
-        lower_box_3d = box_3d[:4,:]
-        box_3d[4:,:] = lower_box_3d
-        box_3d[4:,2] = self.box_z
-        print(box_3d)
+        self.template_box = tray_base
+        print('Template: \n',tray_base)
     
     def compute_tray_dims(self):
         
@@ -227,7 +211,7 @@ class PlaneDetection:
                                         (255, 255, 255), 1, cv2.LINE_AA)
 
     def define_world_pts(self,iD):
-        world_points = np.array(self.tag_boxes[iD]['box']).reshape(-1, 1, 3)
+        world_points = self.tag_boxes[iD]['box']
         return world_points * 0.5 * self.marker_size
 
     def draw_box(self,image, iD , rvec, tvec):
