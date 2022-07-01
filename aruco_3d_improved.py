@@ -96,10 +96,10 @@ class PlaneDetection:
         self.plane_world_pts = {}
         self.plane_world_pts_detect = []
         self.plane_img_pts_detect = []
-        self.load_original_points()
         
-        self.tag_order_linkd_list = LinkedList()
+        self.load_original_points()
         self.compute_plane_dims()
+        self.tag_order_linkd_list = LinkedList()
         self.init_tag_boxes()
         self.define_boxes_for_tags()
         self.rotate_original_pts()
@@ -108,6 +108,23 @@ class PlaneDetection:
         self.camera_distortion = np.loadtxt(calib_path+'distortion.txt', delimiter=',')
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         self.parameters = cv2.aruco.DetectorParameters_create()
+    
+    def load_original_points(self):
+        f = open('plane_points.json')
+		# Dict of points in conveyor:
+        self.plane_world_pts = json.load(f)
+    
+    def compute_plane_dims(self):
+        
+        tl = self.plane_world_pts[self.corners['tl']]
+        tr = self.plane_world_pts[self.corners['tr']]
+        br = self.plane_world_pts[self.corners['br']]
+        bl = self.plane_world_pts[self.corners['bl']]
+        
+        self.plane_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))//10
+        self.plane_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))//10
+
+        print(self.plane_w, self.plane_h)
     
     def init_tag_boxes(self):
         for iD in self.corners.values():
@@ -123,6 +140,17 @@ class PlaneDetection:
             output[actual_node.iD] = (i,i+4)
             actual_node = actual_node.next
         return output
+    
+    def define_template_plane_base(self):
+        plane_base = np.zeros((4,3))
+        i = 0
+        for (key, vector) in self.plane_world_pts.items():
+            if key in self.corners.values():
+                xyz_pt = np.append(np.array(vector), [0.0])/10
+                plane_base[i] = xyz_pt
+                i+=1
+        self.template_plane_base = plane_base
+        print('Template: \n',plane_base)
 
     def define_boxes_for_tags(self):
         self.define_template_plane_base()
@@ -144,36 +172,7 @@ class PlaneDetection:
                 i+=1
 
         print(self.tag_boxes)
-    
-    def define_template_plane_base(self):
-        plane_base = np.zeros((4,3))
-        i = 0
-        for (key, vector) in self.plane_world_pts.items():
-            if key in self.corners.values():
-                xyz_pt = np.append(np.array(vector), [0.0])/10
-                plane_base[i] = xyz_pt
-                i+=1
-        self.template_plane_base = plane_base
-        print('Template: \n',plane_base)
-    
-    def compute_plane_dims(self):
         
-        tl = self.plane_world_pts[self.corners['tl']]
-        tr = self.plane_world_pts[self.corners['tr']]
-        br = self.plane_world_pts[self.corners['br']]
-        bl = self.plane_world_pts[self.corners['bl']]
-        
-        self.plane_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))//10
-        self.plane_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))//10
-
-        print(self.plane_w, self.plane_h)
-        
-
-    def load_original_points(self):
-        f = open('plane_points.json')
-		# Dict of points in conveyor:
-        self.plane_world_pts = json.load(f)
-
     def rotate_original_pts(self):
         Rot_x = np.array([
                     [1.0, 0.0, 0.0],
@@ -361,7 +360,8 @@ class PlaneDetection:
                                             cameraMatrix = self.camera_matrix, 
                                             distCoeff = self.camera_distortion)
 
-        if ids is not None and (self.id_to_find in ids):
+        # if ids is not None and (self.id_to_find in ids):
+        if ids is not None :
             poses = cv2.aruco.estimatePoseSingleMarkers(
                                                 corners, 
                                                 self.marker_size, 
@@ -369,7 +369,7 @@ class PlaneDetection:
                                                 self.camera_distortion)
 
             cv2.aruco.drawDetectedMarkers(frame, corners)
-            grid_id = ids[0][0]
+            first_id = ids[0][0]
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
             self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
                                                             self.rot_vecs[i][0], 
@@ -380,11 +380,11 @@ class PlaneDetection:
                 rvec , tvec = self.rot_vecs[i][0], self.tran_vecs[i][0]
                 self.draw_tag_pose(frame, rvec, tvec)
 
-                if tag_id == grid_id:
+                if tag_id == first_id:
 
                     plane_img_pts = self.draw_box_update(
                                                     frame, 
-                                                    str(grid_id),
+                                                    str(first_id),
                                                     rvec, tvec)
 
 calib_path = ""
