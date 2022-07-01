@@ -5,8 +5,8 @@ import sys, time, math
 import json
 
 class Node:
-    def __init__(self,value = None, next_node = None):
-        self.value = value
+    def __init__(self, iD = None, next_node = None):
+        self.iD = iD
         self.next = next_node
 
 class LinkedList:
@@ -24,30 +24,30 @@ class LinkedList:
         list_str = ''
         if self.circular_lenght is None:
             while actual_node:
-                list_str += str(actual_node.value)+'-> '
+                list_str += str(actual_node.iD)+'-> '
                 actual_node = actual_node.next
         else:
             for i in range((self.circular_lenght+1)*2):
-                list_str += str(actual_node.value)+'-> '
+                list_str += str(actual_node.iD)+'-> '
                 actual_node = actual_node.next
         return list_str
 
-    def find_value(self, value):
+    def find_iD(self, iD):
         actual_node = self.head
         while actual_node:
-            if actual_node.value == value:
+            if actual_node.iD == iD:
                 print('Found!')
                 return actual_node
             actual_node = actual_node.next
 
-    def add_end(self,value):
+    def add_end(self,iD):
         if self.is_head_undefined():
-            self.head = Node(value = value)
+            self.head = Node(iD = iD)
         else:    
             actual_node = self.head
             while actual_node:
                 if actual_node.next is None:
-                    actual_node.next = Node(value = value)
+                    actual_node.next = Node(iD = iD)
                     break
                 actual_node = actual_node.next
 
@@ -62,11 +62,20 @@ class LinkedList:
                 break
             actual_node = actual_node.next
             i+=1
-    def get_next_n_values(self, value, n):
-        actual_node = self.find_value(value)
+
+    def get_next_n_iDs(self, iD, n):
+        actual_node = self.find_iD(iD)
+        output = dict()
+        for i in range(n):
+            output[actual_node.iD] = (i,i+4)
+            actual_node = actual_node.next
+        return output
+    
+    def get_next_n_nodes(self, iD, n):
+        actual_node = self.find_iD(iD)
         output = []
         for i in range(n):
-            output.append(actual_node.value)
+            output.append(actual_node)
             actual_node = actual_node.next
         return output
 
@@ -82,44 +91,16 @@ class PlaneDetection:
         self.marker_size  = 2 #cm
         self.homography = None
         
+        self.tag_boxes = {}
         self.box_vertices = {}
-        self.tray_world_pts = {}
-        self.tray_world_pts_detect = []
-        self.tray_img_pts_detect = []
-        self.tag_boxes = {
-            '0': {'box':None,
-                'pos':{
-                '1':(1,5),
-                '2':(2,6),
-                '3':(3,7)}},
-            '1': {'box':None,
-                'pos':{
-                '2':(1,5),
-                '3':(2,6),
-                '0':(3,7)}},
-            '2': {'box':None,
-                'pos':{
-                '3':(1,5),
-                '0':(2,6),
-                '1':(3,7)}},
-            '3': {'box':None,
-                'pos':{
-                '0':(1,5),
-                '1':(2,6),
-                '2':(3,7)}},
-            }
+        self.plane_world_pts = {}
+        self.plane_world_pts_detect = []
+        self.plane_img_pts_detect = []
         self.load_original_points()
-        l_list = LinkedList()
-        #
-        print('adding at start...')
-        for iD in self.corners.values():
-            l_list.add_end(iD)
-            print(l_list)
-        l_list.make_circular()
-        print(l_list)
-        nodes = l_list.get_next_n_values(list(self.corners.values())[2],len(self.corners))
-        print(nodes)
-        self.compute_tray_dims()
+        
+        self.tag_order_linkd_list = LinkedList()
+        self.compute_plane_dims()
+        self.init_tag_boxes()
         self.define_boxes_for_tags()
         self.rotate_original_pts()
 
@@ -127,54 +108,71 @@ class PlaneDetection:
         self.camera_distortion = np.loadtxt(calib_path+'distortion.txt', delimiter=',')
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         self.parameters = cv2.aruco.DetectorParameters_create()
+    
+    def init_tag_boxes(self):
+        for iD in self.corners.values():
+            self.tag_order_linkd_list.add_end(iD)
+            self.tag_boxes[iD] = {'box':None,'pos':None}
+        self.tag_order_linkd_list.make_circular()
+        print(self.tag_order_linkd_list)
+
+    def compute_tag_relative_pos(self, iD, n):
+        actual_node = self.tag_order_linkd_list.find_iD(iD)
+        output = dict()
+        for i in range(n):
+            output[actual_node.iD] = (i,i+4)
+            actual_node = actual_node.next
+        return output
 
     def define_boxes_for_tags(self):
-        self.define_template_tray_base()
+        self.define_template_plane_base()
         num_pts = len(self.corners)
         i = 0
-        for iD, vector in self.tray_world_pts.items():
+        for iD, vector in self.plane_world_pts.items():
             if iD in self.corners.values():
                 xyz_pt = np.append(np.array(vector), [0.0])/10
                 xyz_pt_matrix = np.tile(xyz_pt, (num_pts, 1))
-                ground_rect = self.template_tray_base - xyz_pt_matrix
+                ground_rect = self.template_plane_base - xyz_pt_matrix
                 ground_rect_up_crop = ground_rect[:i,:]
                 ground_rect_low_crop = ground_rect[i:,:]
                 ground_rect = np.concatenate((ground_rect_low_crop, ground_rect_up_crop), axis=0)
                 box_3d = np.concatenate((ground_rect, ground_rect), axis=0)
                 box_3d[4:,2] = self.box_z
+                positions = self.compute_tag_relative_pos(iD, num_pts)
                 self.tag_boxes[iD]['box'] = box_3d
+                self.tag_boxes[iD]['pos'] = positions
                 i+=1
 
         print(self.tag_boxes)
     
-    def define_template_tray_base(self):
-        tray_base = np.zeros((4,3))
+    def define_template_plane_base(self):
+        plane_base = np.zeros((4,3))
         i = 0
-        for (key, vector) in self.tray_world_pts.items():
+        for (key, vector) in self.plane_world_pts.items():
             if key in self.corners.values():
                 xyz_pt = np.append(np.array(vector), [0.0])/10
-                tray_base[i] = xyz_pt
+                plane_base[i] = xyz_pt
                 i+=1
-        self.template_tray_base = tray_base
-        print('Template: \n',tray_base)
+        self.template_plane_base = plane_base
+        print('Template: \n',plane_base)
     
-    def compute_tray_dims(self):
+    def compute_plane_dims(self):
         
-        tl = self.tray_world_pts[self.corners['tl']]
-        tr = self.tray_world_pts[self.corners['tr']]
-        br = self.tray_world_pts[self.corners['br']]
-        bl = self.tray_world_pts[self.corners['bl']]
+        tl = self.plane_world_pts[self.corners['tl']]
+        tr = self.plane_world_pts[self.corners['tr']]
+        br = self.plane_world_pts[self.corners['br']]
+        bl = self.plane_world_pts[self.corners['bl']]
         
-        self.tray_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))//10
-        self.tray_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))//10
+        self.plane_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))//10
+        self.plane_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))//10
 
-        print(self.tray_w, self.tray_h)
+        print(self.plane_w, self.plane_h)
         
 
     def load_original_points(self):
-        f = open('tray_points.json')
+        f = open('plane_points.json')
 		# Dict of points in conveyor:
-        self.tray_world_pts = json.load(f)
+        self.plane_world_pts = json.load(f)
 
     def rotate_original_pts(self):
         Rot_x = np.array([
@@ -182,23 +180,23 @@ class PlaneDetection:
                     [0.0, math.cos(math.radians(180)),-math.sin(math.radians(180))],
                     [0.0, math.sin(math.radians(180)), math.cos(math.radians(180))]])
 
-        for key, vector in self.tray_world_pts.items():
+        for key, vector in self.plane_world_pts.items():
             xyz_pt = np.append(np.array(vector), [0.0])
-            self.tray_world_pts[key] = list(Rot_x @ xyz_pt)[:2]
-        print(self.tray_world_pts)
+            self.plane_world_pts[key] = list(Rot_x @ xyz_pt)[:2]
+        print(self.plane_world_pts)
 
     def compute_homog(self):
         self.homography = None
-        self.tray_img_pts_detect = []
-        self.tray_world_pts_detect = []
+        self.plane_img_pts_detect = []
+        self.plane_world_pts_detect = []
         for tag_id in self.box_vertices:
-            if tag_id in self.tray_world_pts:
-                self.tray_world_pts_detect.append(self.tray_world_pts[tag_id])
-                self.tray_img_pts_detect.append(list(self.box_vertices[tag_id][0]))
-        is_enough_points_detect = len(self.tray_img_pts_detect)>= 4
+            if tag_id in self.plane_world_pts:
+                self.plane_world_pts_detect.append(self.plane_world_pts[tag_id])
+                self.plane_img_pts_detect.append(list(self.box_vertices[tag_id][0]))
+        is_enough_points_detect = len(self.plane_img_pts_detect)>= 4
         if is_enough_points_detect:
-            self.homography,status = cv2.findHomography(np.array(self.tray_img_pts_detect), 
-												np.array(self.tray_world_pts_detect))
+            self.homography,status = cv2.findHomography(np.array(self.plane_img_pts_detect), 
+												np.array(self.plane_world_pts_detect))
             return self.homography
         else:
             # print("[INFO]: Less than 4 corresponding points found")
@@ -229,7 +227,7 @@ class PlaneDetection:
                 warped = cv2.warpPerspective(
                                         image, 
                                         self.homography, 
-                                        (int(self.tray_w)*10, int(self.tray_h)*10))
+                                        (int(self.plane_w)*10, int(self.plane_h)*10))
             
             return warped
         else:
