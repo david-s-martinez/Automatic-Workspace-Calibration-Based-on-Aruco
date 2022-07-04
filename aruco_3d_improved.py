@@ -183,14 +183,15 @@ class PlaneDetection:
             self.plane_world_pts[key] = list(Rot_x @ xyz_pt)[:2]
         print(self.plane_world_pts)
 
-    def compute_homog(self):
+    def compute_homog(self, w_updated_pts = False):
         self.homography = None
         self.plane_img_pts_detect = []
         self.plane_world_pts_detect = []
-        for tag_id in self.box_vertices:
+        box = self.box_verts_update if w_updated_pts else self.box_vertices
+        for tag_id in box:
             if tag_id in self.plane_world_pts:
                 self.plane_world_pts_detect.append(self.plane_world_pts[tag_id])
-                self.plane_img_pts_detect.append(list(self.box_vertices[tag_id][0]))
+                self.plane_img_pts_detect.append(list(box[tag_id][0]))
         is_enough_points_detect = len(self.plane_img_pts_detect)>= 4
         if is_enough_points_detect:
             self.homography,status = cv2.findHomography(np.array(self.plane_img_pts_detect), 
@@ -201,14 +202,14 @@ class PlaneDetection:
             self.homography = None
             return self.homography
     
-    def compute_perspective_trans(self, image, adaptive_aspect = False):
+    def compute_perspective_trans(self, image, w_updated_pts = False, adaptive_aspect = False):
         height, width, channels = image.shape
-        
-        if self.homography is not None and all(x in self.box_vertices for x in self.corners.values()):
-            tl = self.box_vertices[self.corners['tl']][0]
-            tr = self.box_vertices[self.corners['tr']][0]
-            br = self.box_vertices[self.corners['br']][0]
-            bl = self.box_vertices[self.corners['bl']][0]
+        box = self.box_verts_update if w_updated_pts else self.box_vertices
+        if self.homography is not None and all(x in box for x in self.corners.values()):
+            tl = box[self.corners['tl']][0]
+            tr = box[self.corners['tr']][0]
+            br = box[self.corners['br']][0]
+            bl = box[self.corners['bl']][0]
             # compute the width of the new image, which will be the
             # maximum distance between bottom-right and bottom-left
             # x-coordiates or the top-right and top-left x-coordinates
@@ -389,7 +390,6 @@ class PlaneDetection:
                                                     frame, 
                                                     str(first_id),
                                                     rvec, tvec)
-                    print(self.box_verts_update)
 
 calib_path = ""
 corners = {
@@ -410,9 +410,9 @@ while True:
     ret, frame = cap.read()
     raw_frame = frame.copy()
     pd.detect_tags_3D(frame)
-    # print(pd.box_vertices)
-    homography = pd.compute_homog()
-    frame_warp = pd.compute_perspective_trans(raw_frame)
+    print(pd.box_verts_update)
+    homography = pd.compute_homog(w_updated_pts=True)
+    frame_warp = pd.compute_perspective_trans(raw_frame, w_updated_pts=True)
             
     cv2.imshow('frame', frame)
     if frame_warp is not None:
