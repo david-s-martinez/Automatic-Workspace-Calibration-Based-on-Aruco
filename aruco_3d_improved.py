@@ -232,12 +232,13 @@ class PlaneDetection:
         else:
             return None
 
-    def draw_tag_pose(self,image, rvec, tvec, z_rot=-1):
+    def draw_tag_pose(self,image, rvec, tvec, tag_id, z_rot=-1):
         world_points = np.array([
-            4, 0, 0,
             0, 0, 0,
+            4, 0, 0,
             0, 4, 0,
-            0, 0, -4 * z_rot
+            0, 0, -4 * z_rot,
+            1,1,0
         ]).reshape(-1, 1, 3) * 0.5 * self.marker_size
 
         img_points, _ = cv2.projectPoints(world_points, 
@@ -248,14 +249,14 @@ class PlaneDetection:
         img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)]
 
         cv2.line(image, img_points[0], img_points[1], (0,0,255), 2)
-        cv2.line(image, img_points[1], img_points[2], (0,255,0), 2)
-        cv2.line(image, img_points[1], img_points[3], (255,0,0), 2)
+        cv2.line(image, img_points[0], img_points[2], (0,255,0), 2)
+        cv2.line(image, img_points[0], img_points[3], (255,69,0), 2)
         font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(image, 'X', img_points[0], font, 0.5, (0,0,255), 2, cv2.LINE_AA)
+        cv2.putText(image, 'X', img_points[1], font, 0.5, (0,0,255), 2, cv2.LINE_AA)
         cv2.putText(image, 'Y', img_points[2], font, 0.5, (0,255,0), 2, cv2.LINE_AA)
-        cv2.putText(image, 'Z', img_points[3], font, 0.5, (255,0,0), 2, cv2.LINE_AA)
-        cv2.putText(image, str((0,0)), (img_points[1][0]+10,img_points[1][1]-30), font, 0.5,
-                                        (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(image, 'Z', img_points[3], font, 0.5, (255,69,0), 2, cv2.LINE_AA)
+        cv2.putText(image, str((tag_id)), (img_points[4][0],img_points[4][1]), font, 0.5,
+                                        (255,255,0), 2, cv2.LINE_AA)
 
     def define_world_pts(self,iD):
         world_points = self.tag_boxes[iD]['box']
@@ -339,18 +340,42 @@ class PlaneDetection:
     def compute_box_update(self,image, iD, rvec, tvec):
         box_update = self.update_img_pts(str(iD), rvec, tvec)
 
-        cv2.line(image, box_update['0'][0], box_update['1'][0], (255,0,0), 2)
-        cv2.line(image, box_update['1'][0], box_update['2'][0], (255,0,0), 2)
-        cv2.line(image, box_update['2'][0], box_update['3'][0], (255,0,0), 2)
-        cv2.line(image, box_update['3'][0], box_update['0'][0], (255,0,0), 2)
-        cv2.line(image, box_update['0'][0], box_update['0'][1], (255,0,0), 2)
-        cv2.line(image, box_update['1'][0], box_update['1'][1], (255,0,0), 2)
-        cv2.line(image, box_update['2'][0], box_update['2'][1], (255,0,0), 2)
-        cv2.line(image, box_update['3'][0], box_update['3'][1], (255,0,0), 2)
-        cv2.line(image, box_update['0'][1], box_update['1'][1], (255,0,0), 2)
-        cv2.line(image, box_update['1'][1], box_update['2'][1], (255,0,0), 2)
-        cv2.line(image, box_update['2'][1], box_update['3'][1], (255,0,0), 2)
-        cv2.line(image, box_update['3'][1], box_update['0'][1], (255,0,0), 2)
+        cv2.line(image, 
+            box_update[self.corners['tl']][0], 
+            box_update[self.corners['tr']][0], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['tr']][0], 
+            box_update[self.corners['br']][0], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['br']][0], 
+            box_update[self.corners['bl']][0], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['bl']][0], 
+            box_update[self.corners['tl']][0], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['tl']][0], 
+            box_update[self.corners['tl']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['tr']][0], 
+            box_update[self.corners['tr']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['br']][0], 
+            box_update[self.corners['br']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['bl']][0], 
+            box_update[self.corners['bl']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['tl']][1], 
+            box_update[self.corners['tr']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['tr']][1], 
+            box_update[self.corners['br']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['br']][1], 
+            box_update[self.corners['bl']][1], (0,165,255), 2)
+        cv2.line(image, 
+            box_update[self.corners['bl']][1], 
+            box_update[self.corners['tl']][1], (0,165,255), 2)
         return box_update
     
     def detect_tags_3D(self, frame):
@@ -372,17 +397,17 @@ class PlaneDetection:
                                                 self.camera_matrix, 
                                                 self.camera_distortion)
 
-            cv2.aruco.drawDetectedMarkers(frame, corners)
             min_id = min(ids[0])
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
             self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
                                                             self.rot_vecs[i][0], 
                                                             self.tran_vecs[i][0]) 
                                                             for i, tag_id in enumerate(ids)}
+            cv2.aruco.drawDetectedMarkers(frame, corners)
             for i, tag_id in enumerate(ids):
                 
                 rvec , tvec = self.rot_vecs[i][0], self.tran_vecs[i][0]
-                self.draw_tag_pose(frame, rvec, tvec)
+                self.draw_tag_pose(frame, rvec, tvec, tag_id)
 
                 if tag_id == min_id:
 
