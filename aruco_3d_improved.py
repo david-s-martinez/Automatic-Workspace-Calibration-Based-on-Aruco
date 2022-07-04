@@ -373,7 +373,7 @@ class PlaneDetection:
                                                 self.camera_distortion)
 
             cv2.aruco.drawDetectedMarkers(frame, corners)
-            first_id = ids[0][0]
+            min_id = min(ids[0])
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
             self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
                                                             self.rot_vecs[i][0], 
@@ -384,11 +384,11 @@ class PlaneDetection:
                 rvec , tvec = self.rot_vecs[i][0], self.tran_vecs[i][0]
                 self.draw_tag_pose(frame, rvec, tvec)
 
-                if tag_id == first_id:
+                if tag_id == min_id:
 
                     self.box_verts_update = self.compute_box_update(
                                                     frame, 
-                                                    str(first_id),
+                                                    str(min_id),
                                                     rvec, tvec)
 
 calib_path = ""
