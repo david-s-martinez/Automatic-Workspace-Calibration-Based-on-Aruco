@@ -305,8 +305,8 @@ class PlaneDetection:
     def rewrite_pts(self, pt_indices, box_vert_id ):
         pt_idx1 = pt_indices[0]
         pt_idx2 = pt_indices[1]
-        self.points_update[pt_idx1] = self.box_vertices[box_vert_id][0]
-        self.points_update[pt_idx2] = self.box_vertices[box_vert_id][1]
+        self.pts_update[pt_idx1] = self.box_vertices[box_vert_id][0]
+        self.pts_update[pt_idx2] = self.box_vertices[box_vert_id][1]
 
     def update_pts_w_id(self, iD):
 
@@ -315,9 +315,8 @@ class PlaneDetection:
                 self.rewrite_pts(self.tag_boxes[iD]['pos'][box_vert_id], box_vert_id)
             
     def update_img_pts(self, iD, rvec, tvec):
-
-        self.points_update = [None] * len(self.plane_world_pts) * 2
-        print(self.points_update)
+        num_pts = len(self.plane_world_pts)
+        self.pts_update = [None] * num_pts * 2
         self.update_pts_w_id(iD)
 
         world_points = self.define_world_pts(iD)
@@ -327,31 +326,35 @@ class PlaneDetection:
                                 self.camera_matrix, 
                                 self.camera_distortion)
 
-        img_points = np.round(img_points).astype(int)
-        # img_points = [(x1,y1),(x2,y2),...] in pixels:
-        img_points = [self.points_update[i] if self.points_update[i] else tuple(pt) 
-                        for i, pt in enumerate(img_points.reshape(-1, 2))] 
-        return img_points
+        img_points = np.round(img_points).astype(int).reshape(-1, 2)
+        # box_verts_update = {'id1':(x1,y1),'id2':(x2,y2),...} in pixels:
+        box_verts_update = {
+            key:(self.pts_update[i], self.pts_update[i+num_pts]) if self.pts_update[i] 
+            else (tuple(img_points[i]),tuple(img_points[i+num_pts])) 
+            for i, key in enumerate(self.tag_boxes[iD]['pos'])
+            }
+        return box_verts_update
 
-    def draw_box_update(self,image, iD, rvec, tvec):
-        img_points = self.update_img_pts(str(iD), rvec, tvec)
+    def compute_box_update(self,image, iD, rvec, tvec):
+        box_update = self.update_img_pts(str(iD), rvec, tvec)
 
-        cv2.line(image, img_points[0], img_points[1], (255,0,0), 2)
-        cv2.line(image, img_points[1], img_points[2], (255,0,0), 2)
-        cv2.line(image, img_points[2], img_points[3], (255,0,0), 2)
-        cv2.line(image, img_points[3], img_points[0], (255,0,0), 2)
-        cv2.line(image, img_points[4], img_points[5], (255,0,0), 2)
-        cv2.line(image, img_points[5], img_points[6], (255,0,0), 2)
-        cv2.line(image, img_points[6], img_points[7], (255,0,0), 2)
-        cv2.line(image, img_points[7], img_points[4], (255,0,0), 2)
-        cv2.line(image, img_points[0], img_points[4], (255,0,0), 2)
-        cv2.line(image, img_points[1], img_points[5], (255,0,0), 2)
-        cv2.line(image, img_points[2], img_points[6], (255,0,0), 2)
-        cv2.line(image, img_points[3], img_points[7], (255,0,0), 2)
-        return img_points
+        cv2.line(image, box_update['0'][0], box_update['1'][0], (255,0,0), 2)
+        cv2.line(image, box_update['1'][0], box_update['2'][0], (255,0,0), 2)
+        cv2.line(image, box_update['2'][0], box_update['3'][0], (255,0,0), 2)
+        cv2.line(image, box_update['3'][0], box_update['0'][0], (255,0,0), 2)
+        cv2.line(image, box_update['0'][0], box_update['0'][1], (255,0,0), 2)
+        cv2.line(image, box_update['1'][0], box_update['1'][1], (255,0,0), 2)
+        cv2.line(image, box_update['2'][0], box_update['2'][1], (255,0,0), 2)
+        cv2.line(image, box_update['3'][0], box_update['3'][1], (255,0,0), 2)
+        cv2.line(image, box_update['0'][1], box_update['1'][1], (255,0,0), 2)
+        cv2.line(image, box_update['1'][1], box_update['2'][1], (255,0,0), 2)
+        cv2.line(image, box_update['2'][1], box_update['3'][1], (255,0,0), 2)
+        cv2.line(image, box_update['3'][1], box_update['0'][1], (255,0,0), 2)
+        return box_update
     
     def detect_tags_3D(self, frame):
         self.box_vertices = {}
+        self.box_verts_update = {}
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
         corners, ids, rejected = cv2.aruco.detectMarkers(
                                             gray, 
@@ -382,10 +385,11 @@ class PlaneDetection:
 
                 if tag_id == first_id:
 
-                    plane_img_pts = self.draw_box_update(
+                    self.box_verts_update = self.compute_box_update(
                                                     frame, 
                                                     str(first_id),
                                                     rvec, tvec)
+                    print(self.box_verts_update)
 
 calib_path = ""
 corners = {
@@ -406,7 +410,7 @@ while True:
     ret, frame = cap.read()
     raw_frame = frame.copy()
     pd.detect_tags_3D(frame)
-    print(pd.box_vertices)
+    # print(pd.box_vertices)
     homography = pd.compute_homog()
     frame_warp = pd.compute_perspective_trans(raw_frame)
             
