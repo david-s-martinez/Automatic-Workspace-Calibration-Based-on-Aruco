@@ -67,7 +67,7 @@ class LinkedList:
         actual_node = self.find_iD(iD)
         output = dict()
         for i in range(n):
-            output[actual_node.iD] = (i,i+4)
+            output[actual_node.iD] = (i,i+n)
             actual_node = actual_node.next
         return output
     
@@ -127,7 +127,7 @@ class PlaneDetection:
         print(self.plane_w, self.plane_h)
     
     def init_tag_boxes(self):
-        for iD in self.corners.values():
+        for iD in self.plane_world_pts:
             self.tag_order_linkd_list.add_end(iD)
             self.tag_boxes[iD] = {'box':None,'pos':None}
         self.tag_order_linkd_list.make_circular()
@@ -136,40 +136,39 @@ class PlaneDetection:
     def compute_tag_relative_pos(self, iD, n):
         actual_node = self.tag_order_linkd_list.find_iD(iD)
         output = dict()
+        num_pts = len(self.plane_world_pts)
         for i in range(n):
-            output[actual_node.iD] = (i,i+4)
+            output[actual_node.iD] = (i,i+num_pts)
             actual_node = actual_node.next
         return output
     
     def define_template_plane_base(self):
-        plane_base = np.zeros((4,3))
-        i = 0
-        for (key, vector) in self.plane_world_pts.items():
-            if key in self.corners.values():
-                xyz_pt = np.append(np.array(vector), [0.0])/10
-                plane_base[i] = xyz_pt
-                i+=1
+        num_pts = len(self.plane_world_pts)
+        plane_base = np.zeros((num_pts,3))
+
+        for i, (key, vector) in enumerate(self.plane_world_pts.items()):
+            xyz_pt = np.append(np.array(vector), [0.0])/10
+            plane_base[i] = xyz_pt
+
         self.template_plane_base = plane_base
         print('Template: \n',plane_base)
 
     def define_boxes_for_tags(self):
         self.define_template_plane_base()
-        num_pts = len(self.corners)
-        i = 0
-        for iD, vector in self.plane_world_pts.items():
-            if iD in self.corners.values():
-                xyz_pt = np.append(np.array(vector), [0.0])/10
-                xyz_pt_matrix = np.tile(xyz_pt, (num_pts, 1))
-                ground_rect = self.template_plane_base - xyz_pt_matrix
-                ground_rect_up_crop = ground_rect[:i,:]
-                ground_rect_low_crop = ground_rect[i:,:]
-                ground_rect = np.concatenate((ground_rect_low_crop, ground_rect_up_crop), axis=0)
-                box_3d = np.concatenate((ground_rect, ground_rect), axis=0)
-                box_3d[4:,2] = self.box_z
-                positions = self.compute_tag_relative_pos(iD, num_pts)
-                self.tag_boxes[iD]['box'] = box_3d
-                self.tag_boxes[iD]['pos'] = positions
-                i+=1
+        num_pts = len(self.plane_world_pts)
+        
+        for i,(iD, vector) in enumerate(self.plane_world_pts.items()):
+            xyz_pt = np.append(np.array(vector), [0.0])/10
+            xyz_pt_matrix = np.tile(xyz_pt, (num_pts, 1))
+            ground_rect = self.template_plane_base - xyz_pt_matrix
+            ground_rect_up_crop = ground_rect[:i,:]
+            ground_rect_low_crop = ground_rect[i:,:]
+            ground_rect = np.concatenate((ground_rect_low_crop, ground_rect_up_crop), axis=0)
+            box_3d = np.concatenate((ground_rect, ground_rect), axis=0)
+            box_3d[num_pts:,2] = self.box_z
+            positions = self.compute_tag_relative_pos(iD, num_pts)
+            self.tag_boxes[iD]['box'] = box_3d
+            self.tag_boxes[iD]['pos'] = positions
 
         print(self.tag_boxes)
         
@@ -317,7 +316,8 @@ class PlaneDetection:
             
     def update_img_pts(self, iD, rvec, tvec):
 
-        self.points_update = [None,None,None,None,None,None,None,None]
+        self.points_update = [None] * len(self.plane_world_pts) * 2
+        print(self.points_update)
         self.update_pts_w_id(iD)
 
         world_points = self.define_world_pts(iD)
