@@ -1,3 +1,3 @@
 # Aruco_marker_3D_plane_detection
-It detects 5 tags with defined realworld position and computes projection of points on plane.
+Detection of a plane in 3D space using aruco markers. It detects any set of tags with defined realworld positions on a json file. Then it computes projection of points on plane. It can also compute a perspective transform based on the computed homography matrix, which crops the area inside the tags placed on the corners. The volume of the computed area is defined by a 3d box that is updated with the detected tags. The more tags are detected, the better the box and area are represented.
 ![alt text](https://github.com/davidmartinez13/Aruco_marker_3D_plane_detection/blob/main/plane_detection.png)
