@@ -191,7 +191,7 @@ class PlaneDetection:
         for tag_id in box:
             if tag_id in self.plane_world_pts:
                 self.plane_world_pts_detect.append(self.plane_world_pts[tag_id])
-                self.plane_img_pts_detect.append(list(box[tag_id][0]))
+                self.plane_img_pts_detect.append(list(box[tag_id][1]))
         is_enough_points_detect = len(self.plane_img_pts_detect)>= 4
         if is_enough_points_detect:
             self.homography,status = cv2.findHomography(np.array(self.plane_img_pts_detect), 
