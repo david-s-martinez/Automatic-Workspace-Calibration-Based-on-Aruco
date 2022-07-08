@@ -335,7 +335,7 @@ class PlaneDetection:
                 rvec , tvec = self.rot_vecs[i][0], self.tran_vecs[i][0]
                 self.draw_tag_pose(frame, rvec, tvec, tag_id)
 
-                if tag_id == min_id:
+                if tag_id == min_id and str(min_id) in self.plane_world_pts.keys():
 
                     self.box_verts_update = self.compute_box_update(
                                                     frame, 
