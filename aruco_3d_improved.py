@@ -13,7 +13,7 @@ corners = {
     'bl' :'3'
     }
 
-pd = PlaneDetection(calib_path, corners)
+pd = PlaneDetection(calib_path, corners, marker_size=2, tag_scaling=0.5)
 
 cap = cv2.VideoCapture(2)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)

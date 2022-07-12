@@ -6,7 +6,7 @@ import json
 from plane_computation.linked_list import Node, LinkedList
 
 class PlaneDetection:
-    def __init__(self, calib_path, corners, box_z = 3.0):
+    def __init__(self, calib_path, corners, marker_size= 4,tag_scaling = 1, box_z = 3.0):
         """
         PlaneDetection object constructor. Initializes data containers.
         
@@ -14,7 +14,8 @@ class PlaneDetection:
         self.corners = corners
         self.box_z = box_z
         self.id_to_find  = 0
-        self.marker_size  = 2 #cm
+        self.marker_size  = marker_size #cm
+        self.tag_scaling = tag_scaling
         self.homography = None
         
         self.tag_boxes = {}
@@ -139,22 +140,25 @@ class PlaneDetection:
             # compute the width of the new image, which will be the
             # maximum distance between bottom-right and bottom-left
             # x-coordiates or the top-right and top-left x-coordinates
-            widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
-            widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
-            maxWidth = max(int(widthA), int(widthB))
+            try:
+                widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+                widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+                maxWidth = max(int(widthA), int(widthB))
 
-            heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
-            heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
-            maxHeight = max(int(heightA), int(heightB))
-            if adaptive_aspect:
-                warped = cv2.warpPerspective(image, self.homography, (maxWidth, maxHeight))
-            else:
-                warped = cv2.warpPerspective(
-                                        image, 
-                                        self.homography, 
-                                        (int(self.plane_w)*10, int(self.plane_h)*10))
+                heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+                heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+                maxHeight = max(int(heightA), int(heightB))
+                if adaptive_aspect:
+                    warped = cv2.warpPerspective(image, self.homography, (maxWidth, maxHeight))
+                else:
+                    warped = cv2.warpPerspective(
+                                            image, 
+                                            self.homography, 
+                                            (int(self.plane_w)*10, int(self.plane_h)*10))
             
-            return warped
+                return warped
+            except:
+                return None
         else:
             return None
 
@@ -165,7 +169,7 @@ class PlaneDetection:
             0, 4, 0,
             0, 0, -4 * z_rot,
             1,1,0
-        ]).reshape(-1, 1, 3) * 0.5 * self.marker_size
+        ]).reshape(-1, 1, 3) * self.tag_scaling * self.marker_size
 
         img_points, _ = cv2.projectPoints(world_points, 
                                             rvec, tvec, 
@@ -186,7 +190,7 @@ class PlaneDetection:
 
     def define_world_pts(self,iD):
         world_points = self.tag_boxes[iD]['box']
-        return world_points * 0.5 * self.marker_size
+        return world_points * self.tag_scaling * self.marker_size
 
     def draw_box(self,image, iD , rvec, tvec):
         world_points = self.define_world_pts(str(iD), self.marker_size)
@@ -217,7 +221,7 @@ class PlaneDetection:
         world_points = np.array([
             0, 0, 0,
             0, 0, -3 * z_rot
-        ]).reshape(-1, 1, 3) * 0.5 * self.marker_size
+        ]).reshape(-1, 1, 3) * self.tag_scaling * self.marker_size
 
         img_points, _ = cv2.projectPoints(
                                 world_points, 
