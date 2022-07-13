@@ -6,11 +6,12 @@ import json
 from plane_computation.linked_list import Node, LinkedList
 
 class PlaneDetection:
-    def __init__(self, calib_path, corners, marker_size= 4,tag_scaling = 1, box_z = 3.0):
+    def __init__(self, cam_calib_paths, corners, marker_size= 4,tag_scaling = 1, box_z = 3.0, tag_dict = cv2.aruco.DICT_4X4_50):
         """
         PlaneDetection object constructor. Initializes data containers.
         
         """
+        self.cam_calib_paths = cam_calib_paths
         self.corners = corners
         self.box_z = box_z
         self.id_to_find  = 0
@@ -31,13 +32,13 @@ class PlaneDetection:
         self.define_boxes_for_tags()
         self.rotate_original_pts()
 
-        self.camera_matrix = np.loadtxt(calib_path+'camera_matrix.txt', delimiter=',')
-        self.camera_distortion = np.loadtxt(calib_path+'distortion.txt', delimiter=',')
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        self.camera_matrix = np.loadtxt(cam_calib_paths[0], delimiter=',')
+        self.camera_distortion = np.loadtxt(cam_calib_paths[1], delimiter=',')
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(tag_dict)
         self.parameters = cv2.aruco.DetectorParameters_create()
     
     def load_original_points(self):
-        f = open('plane_points.json')
+        f = open(self.cam_calib_paths[2])
 		# Dict of points in conveyor:
         self.plane_world_pts = json.load(f)
     

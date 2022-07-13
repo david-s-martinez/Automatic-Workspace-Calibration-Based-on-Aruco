@@ -5,20 +5,22 @@ import sys, time, math
 import json
 from plane_computation.plane_detection import PlaneDetection
 
-calib_path = ""
+cam_calib_paths = ('camera_matrix_pc_cam.txt','distortion_pc_cam.txt','plane_points.json')
 corners = {
     'tl' :'0',
     'tr' :'1',
     'br' :'2',
     'bl' :'3'
     }
-
-pd = PlaneDetection(calib_path, corners, marker_size=2, tag_scaling=0.5)
+# tag_dict = cv2.aruco.DICT_APRILTAG_36h11
+tag_dict = cv2.aruco.DICT_4X4_50
+pd = PlaneDetection(cam_calib_paths, corners, marker_size=2, tag_scaling=0.5, box_z=2.55,tag_dict=tag_dict)
+# With IP Cam:
+# cap = cv2.VideoCapture('http://10.41.0.5:8080/?action=stream')
 
 cap = cv2.VideoCapture(2)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
 while True:
 
     ret, frame = cap.read()
