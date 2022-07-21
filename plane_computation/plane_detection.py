@@ -30,7 +30,7 @@ class PlaneDetection:
         self.tag_order_linkd_list = LinkedList()
         self.init_tag_boxes()
         self.define_boxes_for_tags()
-        self.rotate_original_pts()
+        # self.rotate_original_pts()
 
         self.camera_matrix = np.loadtxt(cam_calib_paths[0], delimiter=',')
         self.camera_distortion = np.loadtxt(cam_calib_paths[1], delimiter=',')

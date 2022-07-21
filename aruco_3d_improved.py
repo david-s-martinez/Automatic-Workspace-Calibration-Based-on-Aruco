@@ -5,7 +5,7 @@ import sys, time, math
 import json
 from plane_computation.plane_detection import PlaneDetection
 
-cam_calib_paths = ('camera_matrix_pc_cam.txt','distortion_pc_cam.txt','plane_points.json')
+cam_calib_paths = ('cam_matrix_pc_cam.txt','distortion_pc_cam.txt','plane_points.json')
 corners = {
     'tl' :'0',
     'tr' :'1',
