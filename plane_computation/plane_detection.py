@@ -30,7 +30,7 @@ class PlaneDetection:
         self.tag_order_linkd_list = LinkedList()
         self.init_tag_boxes()
         self.define_boxes_for_tags()
-        # self.rotate_original_pts()
+        self.rotate_original_pts()
 
         self.camera_matrix = np.loadtxt(cam_calib_paths[0], delimiter=',')
         self.camera_distortion = np.loadtxt(cam_calib_paths[1], delimiter=',')
@@ -49,8 +49,8 @@ class PlaneDetection:
         br = self.plane_world_pts[self.corners['br']]
         bl = self.plane_world_pts[self.corners['bl']]
         
-        self.plane_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))//10
-        self.plane_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))//10
+        self.plane_w = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))/10
+        self.plane_h = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))/10
 
         print(self.plane_w, self.plane_h)
     

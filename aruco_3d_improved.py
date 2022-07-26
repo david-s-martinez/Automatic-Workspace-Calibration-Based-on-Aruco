@@ -14,7 +14,7 @@ corners = {
     }
 # tag_dict = cv2.aruco.DICT_APRILTAG_36h11
 tag_dict = cv2.aruco.DICT_4X4_50
-pd = PlaneDetection(cam_calib_paths, corners, marker_size=2, tag_scaling=0.5, box_z=2.55,tag_dict=tag_dict)
+pd = PlaneDetection(cam_calib_paths, corners, marker_size=2, tag_scaling=0.5, box_z=2.6,tag_dict=tag_dict)
 # With IP Cam:
 # cap = cv2.VideoCapture('http://10.41.0.5:8080/?action=stream')
 
