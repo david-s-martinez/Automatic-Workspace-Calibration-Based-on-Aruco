@@ -111,7 +111,7 @@ class PlaneDetection:
             self.plane_world_pts[key] = list(Rot_x @ xyz_pt)[:2]
         print(self.plane_world_pts)
 
-    def compute_homog(self, w_updated_pts = False):
+    def compute_homog(self, w_updated_pts = False, w_up_plane = False):
         self.homography = None
         self.plane_img_pts_detect = []
         self.plane_world_pts_detect = []
@@ -119,7 +119,8 @@ class PlaneDetection:
         for tag_id in box:
             if tag_id in self.plane_world_pts:
                 self.plane_world_pts_detect.append(self.plane_world_pts[tag_id])
-                self.plane_img_pts_detect.append(list(box[tag_id][1]))
+                verts_idx = 1 if w_up_plane else 0
+                self.plane_img_pts_detect.append(list(box[tag_id][verts_idx]))
         is_enough_points_detect = len(self.plane_img_pts_detect)>= 4
         if is_enough_points_detect:
             self.homography,status = cv2.findHomography(np.array(self.plane_img_pts_detect), 
@@ -130,14 +131,15 @@ class PlaneDetection:
             self.homography = None
             return self.homography
     
-    def compute_perspective_trans(self, image, w_updated_pts = False, adaptive_aspect = False):
+    def compute_perspective_trans(self, image, w_updated_pts = False, w_up_plane = False, adaptive_aspect = False):
         height, width, channels = image.shape
         box = self.box_verts_update if w_updated_pts else self.box_vertices
         if self.homography is not None and all(x in box for x in self.corners.values()):
-            tl = box[self.corners['tl']][0]
-            tr = box[self.corners['tr']][0]
-            br = box[self.corners['br']][0]
-            bl = box[self.corners['bl']][0]
+            verts_idx = 1 if w_up_plane else 0
+            tl = box[self.corners['tl']][verts_idx]
+            tr = box[self.corners['tr']][verts_idx]
+            br = box[self.corners['br']][verts_idx]
+            bl = box[self.corners['bl']][verts_idx]
             # compute the width of the new image, which will be the
             # maximum distance between bottom-right and bottom-left
             # x-coordiates or the top-right and top-left x-coordinates
