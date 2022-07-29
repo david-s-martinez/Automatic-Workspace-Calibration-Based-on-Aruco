@@ -219,8 +219,54 @@ class PlaneDetection:
         cv2.line(image, img_points[1], img_points[5], (255,0,0), 2)
         cv2.line(image, img_points[2], img_points[6], (255,0,0), 2)
         cv2.line(image, img_points[3], img_points[7], (255,0,0), 2)
+        
+    def refine_tag_pose(self, iD, ids, corners, rvec, tvec, w_updated_pts = False, w_up_plane = False):
+        
+        plane_img_pts_detect = []
+        plane_world_pts_detect = []
+        box = self.tag_boxes[str(iD)]['box']
+        pos = self.tag_boxes[str(iD)]['pos']
+        # If nothing was detected, return
+        tag_corner_list = corners
+        tag_id_list = ids.flatten()
+        
+        for (tag_corners, tag_id) in zip(tag_corner_list, tag_id_list):
+            tag_id = str(tag_id)
+            # Get (x, y) corners of the tag
+            corners = tag_corners.reshape((4, 2))
+            (top_left, top_right, bottom_right, bottom_left) = corners
 
-    def compute_tag_z_vertices(self, rvec, tvec, z_rot=-1, correct_Z_flip = False):
+            top_left = (int(top_left[0]), int(top_left[1]))
+            top_right = (int(top_right[0]), int(top_right[1]))
+            bottom_right = (int(bottom_right[0]), int(bottom_right[1]))
+            bottom_left = (int(bottom_left[0]), int(bottom_left[1]))
+
+            # Compute centroid
+            cX = int((top_left[0] + bottom_right[0]) / 2.0)
+            cY = int((top_left[1] + bottom_right[1]) / 2.0)
+
+            # Store detected points for homography computation
+            centroid = [cX, cY]
+
+            if tag_id in self.plane_world_pts:
+                plane_world_pts_detect.append(list(box[pos[tag_id][0]]))
+                plane_img_pts_detect.append(centroid)
+        
+        is_enough_points_detect = len(plane_img_pts_detect)>= 4
+        try:
+            _,new_rvec, new_tvec = cv2.solvePnP(np.array(plane_world_pts_detect,dtype=np.float32), 
+                                                np.array(plane_img_pts_detect,dtype=np.float32), 
+                                                self.camera_matrix, self.camera_distortion,
+                                                rvec, tvec)
+            
+            return new_rvec, new_tvec
+        except Exception as e:
+            return rvec, tvec 
+
+    def compute_tag_z_vertices(self, idx, ids, corners, rvecs, tvecs, z_rot=-1, correct_Z_flip = False):
+        rvec = rvecs[idx][0]
+        tvec = tvecs[idx][0]
+        iD = ids[idx][0]
         if correct_Z_flip:
             T = tvec
             R = cv2.Rodrigues(rvec)[0]
@@ -247,6 +293,9 @@ class PlaneDetection:
                 angle = -2*math.acos(tnorm @ forward)
                 R = cv2.Rodrigues(angle * axis)[0] @ R
             rvec = cv2.Rodrigues(R)[0].reshape(1,3)[0]
+        
+        rvec,tvec = self.refine_tag_pose(iD, ids, corners, rvec, tvec)
+        
         world_points = np.array([
             0, 0, 0,
             0, 0, -3 * z_rot
@@ -404,9 +453,12 @@ class PlaneDetection:
 
             min_id = min(ids[0])
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
-            self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices( 
-                                                            self.rot_vecs[i][0], 
-                                                            self.tran_vecs[i][0]) 
+            self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices(
+                                                            i,
+                                                            ids,
+                                                            corners,
+                                                            self.rot_vecs, 
+                                                            self.tran_vecs) 
                                                             for i, tag_id in enumerate(ids)}
             cv2.aruco.drawDetectedMarkers(frame, corners)
             for i, tag_id in enumerate(ids):

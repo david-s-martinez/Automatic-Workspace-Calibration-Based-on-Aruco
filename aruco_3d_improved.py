@@ -63,7 +63,7 @@ while True:
     ret, frame = cap.read()
     raw_frame = frame.copy()
     pd.detect_tags_3D(frame)
-    print(pd.box_verts_update)
+    print(pd.box_vertices)
     homography = pd.compute_homog(w_updated_pts=True)
     rvecs,tvecs = pd.compute_plane_pose(frame,w_updated_pts=False)
     frame_warp = pd.compute_perspective_trans(raw_frame, w_updated_pts=True)
