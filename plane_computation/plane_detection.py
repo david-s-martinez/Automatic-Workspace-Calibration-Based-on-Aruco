@@ -254,7 +254,7 @@ class PlaneDetection:
         
         is_enough_points_detect = len(plane_img_pts_detect)>= 4
         try:
-            _,new_rvec, new_tvec = cv2.solvePnP(np.array(plane_world_pts_detect,dtype=np.float32), 
+            _,new_rvec, new_tvec = cv2.solvePnPRefineLM(np.array(plane_world_pts_detect,dtype=np.float32), 
                                                 np.array(plane_img_pts_detect,dtype=np.float32), 
                                                 self.camera_matrix, self.camera_distortion,
                                                 rvec, tvec)
@@ -267,32 +267,6 @@ class PlaneDetection:
         rvec = rvecs[idx][0]
         tvec = tvecs[idx][0]
         iD = ids[idx][0]
-        if correct_Z_flip:
-            T = tvec
-            R = cv2.Rodrigues(rvec)[0]
-            # Unrelated -- makes Y the up axis, Z forward
-            R = R @ np.array([
-                [1, 0, 0],
-                [0, 0, 1],
-                [0,-1, 0],
-            ])
-            if 0 < R[1,1] < 1:
-                # If it gets here, the pose is flipped.
-
-                # Flip the axes. E.g., Y axis becomes [-y0, -y1, y2].
-                R *= np.array([
-                    [ 1, -1,  1],
-                    [ 1, -1,  1],
-                    [-1,  1, -1],
-                ])
-                
-                # Fixup: rotate along the plane spanned by camera's forward (Z) axis and vector to marker's position
-                forward = np.array([0, 0, 1])
-                tnorm = T / np.linalg.norm(T)
-                axis = np.cross(tnorm, forward)
-                angle = -2*math.acos(tnorm @ forward)
-                R = cv2.Rodrigues(angle * axis)[0] @ R
-            rvec = cv2.Rodrigues(R)[0].reshape(1,3)[0]
         
         rvec,tvec = self.refine_tag_pose(iD, ids, corners, rvec, tvec)
         
@@ -420,8 +394,6 @@ class PlaneDetection:
                 verts_idx = 1 if w_up_plane else 0
                 plane_img_pts_detect.append(list(box[tag_id][verts_idx]))
                 if True:
-                    # cv2.putText(frame, str(box[tag_id][verts_idx]), box[tag_id][verts_idx],
-                    #         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
                     cv2.putText(frame, str(self.plane_world_pts[tag_id]), box[tag_id][verts_idx],
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
         is_enough_points_detect = len(plane_img_pts_detect)>= 4
