@@ -25,24 +25,24 @@ class PlaneDetection:
         self.plane_world_pts_detect = []
         self.plane_img_pts_detect = []
         
-        self.load_original_points()
-        self.compute_plane_dims()
+        self.__load_original_points()
+        self.__compute_plane_dims()
         self.tag_order_linkd_list = LinkedList()
-        self.init_tag_boxes()
-        self.define_boxes_for_tags()
-        self.rotate_original_pts()
+        self.__init_tag_boxes()
+        self.__define_boxes_for_tags()
+        self.__rotate_original_pts()
 
         self.camera_matrix = np.loadtxt(cam_calib_paths[0], delimiter=',')
         self.camera_distortion = np.loadtxt(cam_calib_paths[1], delimiter=',')
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(tag_dict)
         self.parameters = cv2.aruco.DetectorParameters_create()
     
-    def load_original_points(self):
+    def __load_original_points(self):
         f = open(self.cam_calib_paths[2])
 		# Dict of points in conveyor:
         self.plane_world_pts = json.load(f)
     
-    def compute_plane_dims(self):
+    def __compute_plane_dims(self):
         
         tl = self.plane_world_pts[self.corners['tl']]
         tr = self.plane_world_pts[self.corners['tr']]
@@ -54,14 +54,14 @@ class PlaneDetection:
 
         print(self.plane_w, self.plane_h)
     
-    def init_tag_boxes(self):
+    def __init_tag_boxes(self):
         for iD in self.plane_world_pts:
             self.tag_order_linkd_list.add_end(iD)
             self.tag_boxes[iD] = {'box':None,'pos':None}
         self.tag_order_linkd_list.make_circular()
         print(self.tag_order_linkd_list)
 
-    def compute_tag_relative_pos(self, iD, n):
+    def __compute_tag_relative_pos(self, iD, n):
         actual_node = self.tag_order_linkd_list.find_iD(iD)
         output = dict()
         num_pts = len(self.plane_world_pts)
@@ -70,7 +70,7 @@ class PlaneDetection:
             actual_node = actual_node.next
         return output
     
-    def define_template_plane_base(self):
+    def __define_template_plane_base(self):
         num_pts = len(self.plane_world_pts)
         plane_base = np.zeros((num_pts,3))
 
@@ -81,8 +81,8 @@ class PlaneDetection:
         self.template_plane_base = plane_base
         print('Template: \n',plane_base)
 
-    def define_boxes_for_tags(self):
-        self.define_template_plane_base()
+    def __define_boxes_for_tags(self):
+        self.__define_template_plane_base()
         num_pts = len(self.plane_world_pts)
         
         for i,(iD, vector) in enumerate(self.plane_world_pts.items()):
@@ -94,13 +94,13 @@ class PlaneDetection:
             ground_rect = np.concatenate((ground_rect_low_crop, ground_rect_up_crop), axis=0)
             box_3d = np.concatenate((ground_rect, ground_rect), axis=0)
             box_3d[num_pts:,2] = self.box_z
-            positions = self.compute_tag_relative_pos(iD, num_pts)
+            positions = self.__compute_tag_relative_pos(iD, num_pts)
             self.tag_boxes[iD]['box'] = box_3d
             self.tag_boxes[iD]['pos'] = positions
 
         print(self.tag_boxes)
         
-    def rotate_original_pts(self):
+    def __rotate_original_pts(self):
         Rot_x = np.array([
                     [1.0, 0.0, 0.0],
                     [0.0, math.cos(math.radians(180)),-math.sin(math.radians(180))],
@@ -119,7 +119,7 @@ class PlaneDetection:
         for tag_id in box:
             if tag_id in self.plane_world_pts:
                 self.plane_world_pts_detect.append(self.plane_world_pts[tag_id])
-                verts_idx = 1 if w_up_plane else 0
+                verts_idx = 'top' if w_up_plane else 'base'
                 self.plane_img_pts_detect.append(list(box[tag_id][verts_idx]))
         is_enough_points_detect = len(self.plane_img_pts_detect)>= 4
         if is_enough_points_detect:
@@ -135,7 +135,7 @@ class PlaneDetection:
         height, width, channels = image.shape
         box = self.box_verts_update if w_updated_pts else self.box_vertices
         if self.homography is not None and all(x in box for x in self.corners.values()):
-            verts_idx = 1 if w_up_plane else 0
+            verts_idx = 'top' if w_up_plane else 'base'
             tl = box[self.corners['tl']][verts_idx]
             tr = box[self.corners['tr']][verts_idx]
             br = box[self.corners['br']][verts_idx]
@@ -191,12 +191,12 @@ class PlaneDetection:
         cv2.putText(image, str((tag_id)), (img_points[4][0],img_points[4][1]), font, 0.5,
                                         (255,255,0), 2, cv2.LINE_AA)
 
-    def define_world_pts(self,iD):
+    def __define_world_pts(self,iD):
         world_points = self.tag_boxes[iD]['box']
         return world_points * self.tag_scaling * self.marker_size
 
     def draw_box(self,image, iD , rvec, tvec):
-        world_points = self.define_world_pts(str(iD), self.marker_size)
+        world_points = self.__define_world_pts(str(iD), self.marker_size)
         img_points, _ = cv2.projectPoints(
                                 world_points, 
                                 rvec, tvec, 
@@ -220,7 +220,7 @@ class PlaneDetection:
         cv2.line(image, img_points[2], img_points[6], (255,0,0), 2)
         cv2.line(image, img_points[3], img_points[7], (255,0,0), 2)
         
-    def refine_tag_pose(self, iD, ids, corners, rvec, tvec, w_updated_pts = False, w_up_plane = False):
+    def __refine_tag_pose(self, iD, ids, corners, rvec, tvec, w_updated_pts = False, w_up_plane = False):
         
         plane_img_pts_detect = []
         plane_world_pts_detect = []
@@ -263,12 +263,12 @@ class PlaneDetection:
         except Exception as e:
             return rvec, tvec 
 
-    def compute_tag_z_vertices(self, idx, ids, corners, rvecs, tvecs, z_rot=-1, correct_Z_flip = False):
+    def __compute_tag_axis(self, idx, ids, corners, rvecs, tvecs, z_rot=-1, correct_Z_flip = False):
         rvec = rvecs[idx][0]
         tvec = tvecs[idx][0]
         iD = ids[idx][0]
         
-        rvec,tvec = self.refine_tag_pose(iD, ids, corners, rvec, tvec)
+        rvec,tvec = self.__refine_tag_pose(iD, ids, corners, rvec, tvec)
         
         world_points = np.array([
             0, 0, 0,
@@ -283,27 +283,26 @@ class PlaneDetection:
 
         img_points = np.round(img_points).astype(int)
         img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)]
+        return {'base':img_points[0],'top':img_points[1], 'rvec':rvec, 'tvec':tvec}
 
-        return img_points[0],img_points[1]
-
-    def rewrite_pts(self, pt_indices, box_vert_id ):
+    def __rewrite_pts(self, pt_indices, box_vert_id ):
         pt_idx1 = pt_indices[0]
         pt_idx2 = pt_indices[1]
-        self.pts_update[pt_idx1] = self.box_vertices[box_vert_id][0]
-        self.pts_update[pt_idx2] = self.box_vertices[box_vert_id][1]
+        self.pts_update[pt_idx1] = self.box_vertices[box_vert_id]['base']
+        self.pts_update[pt_idx2] = self.box_vertices[box_vert_id]['top']
 
-    def update_pts_w_id(self, iD):
+    def __update_pts_w_id(self, iD):
 
         for box_vert_id in self.box_vertices:
             if box_vert_id in self.tag_boxes[iD]['pos']:
-                self.rewrite_pts(self.tag_boxes[iD]['pos'][box_vert_id], box_vert_id)
+                self.__rewrite_pts(self.tag_boxes[iD]['pos'][box_vert_id], box_vert_id)
             
-    def update_img_pts(self, iD, rvec, tvec):
+    def __update_img_pts(self, iD, rvec, tvec):
         num_pts = len(self.plane_world_pts)
         self.pts_update = [None] * num_pts * 2
-        self.update_pts_w_id(iD)
+        self.__update_pts_w_id(iD)
 
-        world_points = self.define_world_pts(iD)
+        world_points = self.__define_world_pts(iD)
         img_points, _ = cv2.projectPoints(
                                 world_points, 
                                 rvec, tvec, 
@@ -313,51 +312,51 @@ class PlaneDetection:
         img_points = np.round(img_points).astype(int).reshape(-1, 2)
         # box_verts_update = {'id1':(x1,y1),'id2':(x2,y2),...} in pixels:
         box_verts_update = {
-            key:(self.pts_update[i], self.pts_update[i+num_pts]) if self.pts_update[i] 
-            else (tuple(img_points[i]),tuple(img_points[i+num_pts])) 
+            key:{'base':self.pts_update[i], 'top':self.pts_update[i+num_pts]} if self.pts_update[i] 
+            else {'base':tuple(img_points[i]),'top':tuple(img_points[i+num_pts])} 
             for i, key in enumerate(self.tag_boxes[iD]['pos'])
             }
         return box_verts_update
 
-    def compute_box_update(self,image, iD, rvec, tvec):
-        box_update = self.update_img_pts(str(iD), rvec, tvec)
+    def __compute_box_update(self,image, iD, rvec, tvec):
+        box_update = self.__update_img_pts(str(iD), rvec, tvec)
 
         cv2.line(image, 
-            box_update[self.corners['tl']][0], 
-            box_update[self.corners['tr']][0], (0,165,255), 2)
+            box_update[self.corners['tl']]['base'], 
+            box_update[self.corners['tr']]['base'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['tr']][0], 
-            box_update[self.corners['br']][0], (0,165,255), 2)
+            box_update[self.corners['tr']]['base'], 
+            box_update[self.corners['br']]['base'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['br']][0], 
-            box_update[self.corners['bl']][0], (0,165,255), 2)
+            box_update[self.corners['br']]['base'], 
+            box_update[self.corners['bl']]['base'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['bl']][0], 
-            box_update[self.corners['tl']][0], (0,165,255), 2)
+            box_update[self.corners['bl']]['base'], 
+            box_update[self.corners['tl']]['base'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['tl']][0], 
-            box_update[self.corners['tl']][1], (0,165,255), 2)
+            box_update[self.corners['tl']]['base'], 
+            box_update[self.corners['tl']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['tr']][0], 
-            box_update[self.corners['tr']][1], (0,165,255), 2)
+            box_update[self.corners['tr']]['base'], 
+            box_update[self.corners['tr']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['br']][0], 
-            box_update[self.corners['br']][1], (0,165,255), 2)
+            box_update[self.corners['br']]['base'], 
+            box_update[self.corners['br']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['bl']][0], 
-            box_update[self.corners['bl']][1], (0,165,255), 2)
+            box_update[self.corners['bl']]['base'], 
+            box_update[self.corners['bl']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['tl']][1], 
-            box_update[self.corners['tr']][1], (0,165,255), 2)
+            box_update[self.corners['tl']]['top'], 
+            box_update[self.corners['tr']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['tr']][1], 
-            box_update[self.corners['br']][1], (0,165,255), 2)
+            box_update[self.corners['tr']]['top'], 
+            box_update[self.corners['br']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['br']][1], 
-            box_update[self.corners['bl']][1], (0,165,255), 2)
+            box_update[self.corners['br']]['top'], 
+            box_update[self.corners['bl']]['top'], (0,165,255), 2)
         cv2.line(image, 
-            box_update[self.corners['bl']][1], 
-            box_update[self.corners['tl']][1], (0,165,255), 2)
+            box_update[self.corners['bl']]['top'], 
+            box_update[self.corners['tl']]['top'], (0,165,255), 2)
         return box_update
 
     def compute_plane_origin(self, frame, marker_size, rvec,tvec, 
@@ -391,7 +390,7 @@ class PlaneDetection:
         for tag_id in box:
             if tag_id in self.plane_world_pts:
                 plane_world_pts_detect.append([self.plane_world_pts[tag_id][0]/10,self.plane_world_pts[tag_id][1]/10,0.0])
-                verts_idx = 1 if w_up_plane else 0
+                verts_idx = 'top' if w_up_plane else 'base'
                 plane_img_pts_detect.append(list(box[tag_id][verts_idx]))
                 if True:
                     cv2.putText(frame, str(self.plane_world_pts[tag_id]), box[tag_id][verts_idx],
@@ -425,7 +424,7 @@ class PlaneDetection:
 
             min_id = min(ids[0])
             self.rot_vecs, self.tran_vecs = poses[0], poses[1]
-            self.box_vertices = {str(tag_id[0]):self.compute_tag_z_vertices(
+            self.box_vertices = {str(tag_id[0]):self.__compute_tag_axis(
                                                             i,
                                                             ids,
                                                             corners,
@@ -440,7 +439,7 @@ class PlaneDetection:
 
                 if tag_id == min_id and str(min_id) in self.plane_world_pts.keys():
 
-                    self.box_verts_update = self.compute_box_update(
+                    self.box_verts_update = self.__compute_box_update(
                                                     frame, 
                                                     str(min_id),
                                                     rvec, tvec)
