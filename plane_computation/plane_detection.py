@@ -308,6 +308,7 @@ class PlaneDetection:
                                 rvec, tvec, 
                                 self.camera_matrix, 
                                 self.camera_distortion)
+        #TODO get translation vectors of all tags with world pts and given rvec 
 
         img_points = np.round(img_points).astype(int).reshape(-1, 2)
         # box_verts_update = {'id1':(x1,y1),'id2':(x2,y2),...} in pixels:
