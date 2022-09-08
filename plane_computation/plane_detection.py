@@ -18,6 +18,10 @@ class PlaneDetection:
         self.marker_size  = marker_size #cm
         self.tag_scaling = tag_scaling
         self.homography = None
+        self.Rot_x = np.array([
+                    [1.0, 0.0, 0.0],
+                    [0.0, math.cos(math.radians(180)),-math.sin(math.radians(180))],
+                    [0.0, math.sin(math.radians(180)), math.cos(math.radians(180))]])
         
         self.tag_boxes = {}
         self.box_vertices = {}
@@ -40,7 +44,8 @@ class PlaneDetection:
     def __load_original_points(self):
         f = open(self.cam_calib_paths[2])
 		# Dict of points in conveyor:
-        self.plane_world_pts = json.load(f)
+        self.org_plane_world_pts = json.load(f)
+        self.plane_world_pts = self.org_plane_world_pts.copy()
     
     def __compute_plane_dims(self):
         
@@ -75,7 +80,8 @@ class PlaneDetection:
         plane_base = np.zeros((num_pts,3))
 
         for i, (key, vector) in enumerate(self.plane_world_pts.items()):
-            xyz_pt = np.append(np.array(vector), [0.0])/10
+            # xyz_pt = np.append(np.array(vector), [0.0])/10
+            xyz_pt = np.array(vector)/10
             plane_base[i] = xyz_pt
 
         self.template_plane_base = plane_base
@@ -86,7 +92,7 @@ class PlaneDetection:
         num_pts = len(self.plane_world_pts)
         
         for i,(iD, vector) in enumerate(self.plane_world_pts.items()):
-            xyz_pt = np.append(np.array(vector), [0.0])/10
+            xyz_pt = np.array(vector)/10
             xyz_pt_matrix = np.tile(xyz_pt, (num_pts, 1))
             ground_rect = self.template_plane_base - xyz_pt_matrix
             ground_rect_up_crop = ground_rect[:i,:]
@@ -101,14 +107,9 @@ class PlaneDetection:
         print(self.tag_boxes)
         
     def __rotate_original_pts(self):
-        Rot_x = np.array([
-                    [1.0, 0.0, 0.0],
-                    [0.0, math.cos(math.radians(180)),-math.sin(math.radians(180))],
-                    [0.0, math.sin(math.radians(180)), math.cos(math.radians(180))]])
-
         for key, vector in self.plane_world_pts.items():
-            xyz_pt = np.append(np.array(vector), [0.0])
-            self.plane_world_pts[key] = list(Rot_x @ xyz_pt)[:2]
+            xyz_pt = np.array(vector)
+            self.plane_world_pts[key] = list(self.Rot_x @ xyz_pt)
         print(self.plane_world_pts)
 
     def compute_homog(self, w_updated_pts = False, w_up_plane = False):
@@ -254,11 +255,10 @@ class PlaneDetection:
         
         is_enough_points_detect = len(plane_img_pts_detect)>= 4
         try:
-            _,new_rvec, new_tvec = cv2.solvePnPRefineLM(np.array(plane_world_pts_detect,dtype=np.float32), 
+            new_rvec, new_tvec = cv2.solvePnPRefineLM(np.array(plane_world_pts_detect,dtype=np.float32), 
                                                 np.array(plane_img_pts_detect,dtype=np.float32), 
                                                 self.camera_matrix, self.camera_distortion,
                                                 rvec, tvec)
-            
             return new_rvec, new_tvec
         except Exception as e:
             return rvec, tvec 
@@ -360,15 +360,15 @@ class PlaneDetection:
             box_update[self.corners['tl']]['top'], (0,165,255), 2)
         return box_update
 
-    def compute_plane_origin(self, frame, marker_size, rvec,tvec, 
+    def __compute_plane_origin(self, frame, rvec,tvec, 
                         z_rot=1, cam_pose = False):
         world_points = np.array([
-            3.0, 0.0, 0.0,
+            6.0, 0.0, 0.0,
             0.0, 0.0, 0.0,
-            0.0, 3.0, 0.0,
-            0.0, 0.0, 3.0 * z_rot
+            0.0, 6.0, 0.0,
+            0.0, 0.0, 6.0 * z_rot
         ]).reshape(-1, 1, 3)
-        x_hand, y_hand, z_hand = tvec[0][0], tvec[1][0], tvec[2][0]
+        x_plane, y_plane, z_plane = tvec[0], tvec[1], tvec[2]
         img_points, _ = cv2.projectPoints(world_points, rvec, tvec, self.camera_matrix, self.camera_distortion)
         img_points = np.round(img_points).astype(int)
         img_points = [tuple(pt) for pt in img_points.reshape(-1, 2)]
@@ -380,8 +380,6 @@ class PlaneDetection:
         cv2.putText(frame, 'X', img_points[0], font, 0.5, (0,0,255), 2, cv2.LINE_AA)
         cv2.putText(frame, 'Y', img_points[2], font, 0.5, (0,255,0), 2, cv2.LINE_AA)
         cv2.putText(frame, 'Z', img_points[3], font, 0.5, (255,0,0), 2, cv2.LINE_AA)
-        # Position of hand respect to camera , if camera is steady and hand moving
-        str_position = "x=%4.0f y=%4.0f z=%4.0f"%(x_hand, y_hand, z_hand)
         
     def compute_plane_pose(self, frame, w_updated_pts = False, w_up_plane = False):
         
@@ -389,19 +387,21 @@ class PlaneDetection:
         plane_world_pts_detect = []
         box = self.box_verts_update if w_updated_pts else self.box_vertices
         for tag_id in box:
-            if tag_id in self.plane_world_pts:
-                plane_world_pts_detect.append([self.plane_world_pts[tag_id][0]/10,self.plane_world_pts[tag_id][1]/10,0.0])
+            if tag_id in self.org_plane_world_pts:
+                plane_world_pts_detect.append([self.org_plane_world_pts[tag_id][0]/10,self.org_plane_world_pts[tag_id][1]/10,0.0])
                 verts_idx = 'top' if w_up_plane else 'base'
                 plane_img_pts_detect.append(list(box[tag_id][verts_idx]))
                 if True:
-                    cv2.putText(frame, str(self.plane_world_pts[tag_id]), box[tag_id][verts_idx],
+                    cv2.putText(frame, str(self.org_plane_world_pts[tag_id]), box[tag_id][verts_idx],
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
         is_enough_points_detect = len(plane_img_pts_detect)>= 4
-        try:
-            _,rvec, tvec = cv2.solvePnP(np.array(plane_world_pts_detect,dtype=np.float32), np.array(plane_img_pts_detect,dtype=np.float32), self.camera_matrix, self.camera_distortion)
-            self.compute_plane_origin(frame,8, rvec, tvec)
+        if is_enough_points_detect:
+            _,rvec, tvec = cv2.solvePnP(np.array(plane_world_pts_detect,dtype=np.float32), 
+                                        np.array(plane_img_pts_detect,dtype=np.float32), 
+                                        self.camera_matrix, self.camera_distortion)
+            self.__compute_plane_origin(frame, rvec, tvec)
             return rvec, tvec
-        except Exception as e:
+        else:
             return None, None 
 
     def detect_tags_3D(self, frame):

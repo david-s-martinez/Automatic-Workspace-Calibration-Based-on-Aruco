@@ -62,15 +62,22 @@ while True:
 
     ret, frame = cap.read()
     raw_frame = frame.copy()
+    
     pd.detect_tags_3D(frame)
-    print(pd.box_vertices)
     homography = pd.compute_homog(w_updated_pts=True, w_up_plane=True)
     frame_warp = pd.compute_perspective_trans(raw_frame, w_updated_pts=True, w_up_plane=True)
-            
+    plane_rot, plane_trans = pd.compute_plane_pose(raw_frame)
+
+    # print(pd.)
+    f_height, f_width, f_channels = frame.shape
+    frame = cv2.resize(frame, (f_width*2, f_height*2))
+    raw_frame = cv2.resize(raw_frame, (f_width*2, f_height*2))
     cv2.imshow('frame', frame)
+    cv2.imshow('raw_frame', raw_frame)
+    
     if frame_warp is not None:
         w_height, w_width, w_channels = frame_warp.shape
-        # frame_warp = cv2.resize(frame_warp, (w_width*4, w_height*4))
+        frame_warp = cv2.resize(frame_warp, (w_width*4, w_height*4))
         cv2.imshow('frame_warp', frame_warp)
 
     key = cv2.waitKey(1) & 0xFF
