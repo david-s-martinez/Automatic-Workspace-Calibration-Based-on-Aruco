@@ -414,9 +414,19 @@ class PlaneDetection:
                                             parameters = self.parameters,
                                             cameraMatrix = self.camera_matrix, 
                                             distCoeff = self.camera_distortion)
-
+        corners_updated = list()
+        ids_updated = list()
+        if ids is not None:
+            for index, tag_id in enumerate(ids):
+                if str(tag_id[0]) in self.plane_world_pts.keys():
+                    ids_updated.append(tag_id)
+                    corners_updated.append(corners[index])
+        corners = np.array(corners_updated)
+        ids = np.array(ids_updated)
+        #print(ids)
+        if len(ids) > 0:
         # if ids is not None and (self.id_to_find in ids):
-        if ids is not None :
+        # if ids is not None :
             poses = cv2.aruco.estimatePoseSingleMarkers(
                                                 corners, 
                                                 self.marker_size, 

@@ -5,13 +5,14 @@ import sys, time, math
 import json
 from plane_computation.plane_detection import PlaneDetection
 
-# cam_source = 2
+# cam_source = 0
 cam_source = 'delta_robot.mp4'
 # cam_source = 'http://10.41.0.4:8080/?action=stream'
 url_detections = 'http://10.41.0.4:5000/detections'
 CAM_CONFIG_PATH = './detection_config/'
 MODEL_PATH = './yoloV4_config/'
 TAG_TYPE = 'april'
+# TAG_TYPE = 'og_aruco'
 CAM_TYPE = 'rpi'
 
 path_dict = {
@@ -22,6 +23,7 @@ path_dict = {
                 'pc':CAM_CONFIG_PATH+'distortion_pc_cam.txt' },
 
 'plane_pts':{'april':CAM_CONFIG_PATH+'plane_points_new_tray.json',
+                'og_aruco':CAM_CONFIG_PATH+'new_aruco_tray.json',
                 'aruco':CAM_CONFIG_PATH+'plane_points_old_tray.json'},
 
 'model' : {'model_config':MODEL_PATH+'config.cfg',
@@ -30,10 +32,14 @@ path_dict = {
 
 plane_config = {
 'tag_dicts' : {'aruco':cv2.aruco.DICT_4X4_50,
+            'og_aruco':cv2.aruco.DICT_ARUCO_ORIGINAL,
             'april':cv2.aruco.DICT_APRILTAG_36h11},
 
-'plane_corners' : {'aruco': {'tl' :'0','tr' :'1','br' :'2','bl' :'3'}, 
+'plane_corners' : {'og_aruco': {'tl' :'0','tr' :'9','br' :'21','bl' :'12'}, 
+                    'aruco': {'tl' :'0','tr' :'1','br' :'2','bl' :'3'},
                     'april':{'tl' :'30','tr' :'101','br' :'5','bl' :'6'}},
+# 'plane_corners' : {'aruco': {'tl' :'0','tr' :'1','br' :'2','bl' :'3'}, 
+#                     'april':{'tl' :'30','tr' :'101','br' :'5','bl' :'6'}},
     }
 
 config = {
