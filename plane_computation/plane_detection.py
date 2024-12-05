@@ -3,8 +3,10 @@ import cv2
 import cv2.aruco as aruco
 import sys, time, math
 import json
-from plane_computation.linked_list import Node, LinkedList
-
+try:
+    from plane_computation.linked_list import Node, LinkedList
+except:
+    from plane_detector.plane_computation.linked_list import Node, LinkedList
 class PlaneDetection:
     def __init__(self, cam_calib_paths, corners, marker_size= 4,tag_scaling = 1, box_z = 3.0, tag_dict = cv2.aruco.DICT_4X4_50):
         """
