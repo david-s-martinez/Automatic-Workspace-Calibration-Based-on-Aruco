@@ -6,10 +6,10 @@ import json
 from plane_computation.plane_detection import PlaneDetection
 
 # cam_source = 0
-cam_source = 'delta_robot.mp4'
+cam_source = './assets/delta_robot.mp4'
 # cam_source = 'http://10.41.0.4:8080/?action=stream'
 url_detections = 'http://10.41.0.4:5000/detections'
-CAM_CONFIG_PATH = './detection_config/'
+CAM_CONFIG_PATH = './config/'
 MODEL_PATH = './yoloV4_config/'
 TAG_TYPE = 'april'
 # TAG_TYPE = 'og_aruco'

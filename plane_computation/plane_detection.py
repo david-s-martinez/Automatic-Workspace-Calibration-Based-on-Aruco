@@ -8,8 +8,15 @@ from plane_computation.linked_list import Node, LinkedList
 class PlaneDetection:
     def __init__(self, cam_calib_paths, corners, marker_size= 4,tag_scaling = 1, box_z = 3.0, tag_dict = cv2.aruco.DICT_4X4_50):
         """
-        PlaneDetection object constructor. Initializes data containers.
-        
+        Initializes the PlaneDetection object with camera calibration, marker properties, and plane details.
+
+        Args:
+            cam_calib_paths (list): Paths to camera calibration files [camera_matrix, distortion_coefficients, world_points].
+            corners (dict): Dictionary specifying the corner points of the plane (tl, tr, br, bl).
+            marker_size (float): Size of the ArUco marker in centimeters.
+            tag_scaling (float): Scaling factor for the tags.
+            box_z (float): Height of the 3D bounding box.
+            tag_dict (int): Predefined ArUco dictionary.
         """
         self.cam_calib_paths = cam_calib_paths
         self.corners = corners
@@ -42,13 +49,18 @@ class PlaneDetection:
         self.parameters = cv2.aruco.DetectorParameters_create()
     
     def __load_original_points(self):
+        """
+        Loads the original world points from a file and initializes the plane world points.
+        """
         f = open(self.cam_calib_paths[2])
 		# Dict of points in conveyor:
         self.org_plane_world_pts = json.load(f)
         self.plane_world_pts = self.org_plane_world_pts.copy()
     
     def __compute_plane_dims(self):
-        
+        """
+        Computes the width and height of the plane in centimeters using the corner points.
+        """
         tl = self.plane_world_pts[self.corners['tl']]
         tr = self.plane_world_pts[self.corners['tr']]
         br = self.plane_world_pts[self.corners['br']]
@@ -60,6 +72,9 @@ class PlaneDetection:
         print(self.plane_w, self.plane_h)
     
     def __init_tag_boxes(self):
+        """
+        Initializes tag boxes and creates a circular linked list for the tag order.
+        """
         for iD in self.plane_world_pts:
             self.tag_order_linkd_list.add_end(iD)
             self.tag_boxes[iD] = {'box':None,'pos':None}
@@ -67,6 +82,16 @@ class PlaneDetection:
         print(self.tag_order_linkd_list)
 
     def __compute_tag_relative_pos(self, iD, n):
+        """
+        Computes the relative positions of tags in the circular linked list.
+
+        Args:
+            iD (str): Tag ID for which relative positions are computed.
+            n (int): Number of points to consider for relative position.
+
+        Returns:
+            dict: Relative positions of tags.
+        """
         actual_node = self.tag_order_linkd_list.find_iD(iD)
         output = dict()
         num_pts = len(self.plane_world_pts)
@@ -76,6 +101,9 @@ class PlaneDetection:
         return output
     
     def __define_template_plane_base(self):
+        """
+        Defines a base template for the plane using the world points.
+        """
         num_pts = len(self.plane_world_pts)
         plane_base = np.zeros((num_pts,3))
 
@@ -88,6 +116,9 @@ class PlaneDetection:
         print('Template: \n',plane_base)
 
     def __define_boxes_for_tags(self):
+        """
+        Defines 3D bounding boxes for all tags based on their positions and the template plane base.
+        """
         self.__define_template_plane_base()
         num_pts = len(self.plane_world_pts)
         
@@ -107,12 +138,25 @@ class PlaneDetection:
         print(self.tag_boxes)
         
     def __rotate_original_pts(self):
+        """
+        Rotates the original plane world points by 180 degrees around the x-axis.
+        """
         for key, vector in self.plane_world_pts.items():
             xyz_pt = np.array(vector)
             self.plane_world_pts[key] = list(self.Rot_x @ xyz_pt)
         print(self.plane_world_pts)
 
     def compute_homog(self, w_updated_pts = False, w_up_plane = False):
+        """
+        Computes the homography matrix between detected image points and world points.
+
+        Args:
+            w_updated_pts (bool): Whether to use updated points for computation.
+            w_up_plane (bool): Whether to use the upper plane points for computation.
+
+        Returns:
+            numpy.ndarray or None: The computed homography matrix or None if not enough points are detected.
+        """
         self.homography = None
         self.plane_img_pts_detect = []
         self.plane_world_pts_detect = []
@@ -133,6 +177,18 @@ class PlaneDetection:
             return self.homography
     
     def compute_perspective_trans(self, image, w_updated_pts = False, w_up_plane = False, adaptive_aspect = False):
+        """
+        Applies a perspective transformation to an image using the computed homography.
+
+        Args:
+            image (numpy.ndarray): Input image to transform.
+            w_updated_pts (bool): Whether to use updated points for transformation.
+            w_up_plane (bool): Whether to use the upper plane points.
+            adaptive_aspect (bool): Whether to adapt the output aspect ratio.
+
+        Returns:
+            numpy.ndarray or None: Transformed image or None if transformation fails.
+        """
         height, width, channels = image.shape
         box = self.box_verts_update if w_updated_pts else self.box_vertices
         if self.homography is not None and all(x in box for x in self.corners.values()):
@@ -167,6 +223,16 @@ class PlaneDetection:
             return None
 
     def draw_tag_pose(self,image, rvec, tvec, tag_id, z_rot=-1):
+        """
+        Draws the pose of an ArUco tag in the image.
+
+        Args:
+            image (numpy.ndarray): Image to draw on.
+            rvec (numpy.ndarray): Rotation vector.
+            tvec (numpy.ndarray): Translation vector.
+            tag_id (int): ID of the ArUco tag.
+            z_rot (int): Rotation around the z-axis. Default is -1.
+        """
         world_points = np.array([
             0, 0, 0,
             4, 0, 0,
@@ -193,10 +259,28 @@ class PlaneDetection:
                                         (255,255,0), 2, cv2.LINE_AA)
 
     def __define_world_pts(self,iD):
+        """
+        Defines the world points for a specific tag ID.
+
+        Args:
+            iD (str): Tag ID.
+
+        Returns:
+            numpy.ndarray: World points for the tag.
+        """
         world_points = self.tag_boxes[iD]['box']
         return world_points * self.tag_scaling * self.marker_size
 
     def draw_box(self,image, iD , rvec, tvec):
+        """
+        Draws a 3D bounding box centered on an ArUco tag in the image.
+
+        Args:
+            image (numpy.ndarray): Image to draw on.
+            iD (str): Tag ID.
+            rvec (numpy.ndarray): Rotation vector.
+            tvec (numpy.ndarray): Translation vector.
+        """
         world_points = self.__define_world_pts(str(iD), self.marker_size)
         img_points, _ = cv2.projectPoints(
                                 world_points, 
@@ -222,7 +306,22 @@ class PlaneDetection:
         cv2.line(image, img_points[3], img_points[7], (255,0,0), 2)
         
     def __refine_tag_pose(self, iD, ids, corners, rvec, tvec, w_updated_pts = False, w_up_plane = False):
-        
+        """
+        Refines the pose of a detected tag using its image and world points.
+
+        Args:
+            iD (str): Tag ID.
+            ids (numpy.ndarray): Array of detected tag IDs.
+            corners (numpy.ndarray): Array of tag corners.
+            rvec (numpy.ndarray): Initial rotation vector.
+            tvec (numpy.ndarray): Initial translation vector.
+            w_updated_pts (bool): Whether to use updated points for refinement.
+            w_up_plane (bool): Whether to use the upper plane points.
+
+        Returns:
+            tuple: Refined rotation and translation vectors.
+        """
+
         plane_img_pts_detect = []
         plane_world_pts_detect = []
         box = self.tag_boxes[str(iD)]['box']
@@ -264,6 +363,21 @@ class PlaneDetection:
             return rvec, tvec 
 
     def __compute_tag_axis(self, idx, ids, corners, rvecs, tvecs, z_rot=-1, correct_Z_flip = False):
+        """
+        Computes the axis of a detected tag in the image.
+
+        Args:
+            idx (int): Index of the tag in the detection list.
+            ids (numpy.ndarray): Array of detected tag IDs.
+            corners (numpy.ndarray): Array of tag corners.
+            rvecs (numpy.ndarray): Array of rotation vectors.
+            tvecs (numpy.ndarray): Array of translation vectors.
+            z_rot (int): Rotation around the z-axis.
+            correct_Z_flip (bool): Whether to correct the Z-axis flip.
+
+        Returns:
+            dict: Base and top points of the tag axis and refined rotation and translation vectors.
+        """
         rvec = rvecs[idx][0]
         tvec = tvecs[idx][0]
         iD = ids[idx][0]
@@ -286,18 +400,41 @@ class PlaneDetection:
         return {'base':img_points[0],'top':img_points[1], 'rvec':rvec, 'tvec':tvec}
 
     def __rewrite_pts(self, pt_indices, box_vert_id ):
+        """
+        Rewrites specific points in the updated points array.
+
+        Args:
+            pt_indices (tuple): Indices of the points to update.
+            box_vert_id (str): ID of the corresponding box vertex.
+        """
         pt_idx1 = pt_indices[0]
         pt_idx2 = pt_indices[1]
         self.pts_update[pt_idx1] = self.box_vertices[box_vert_id]['base']
         self.pts_update[pt_idx2] = self.box_vertices[box_vert_id]['top']
 
     def __update_pts_w_id(self, iD):
+        """
+        Updates the points array for a specific tag ID.
 
+        Args:
+            iD (str): Tag ID.
+        """
         for box_vert_id in self.box_vertices:
             if box_vert_id in self.tag_boxes[iD]['pos']:
                 self.__rewrite_pts(self.tag_boxes[iD]['pos'][box_vert_id], box_vert_id)
             
     def __update_img_pts(self, iD, rvec, tvec):
+        """
+        Updates the image points for a specific tag ID.
+
+        Args:
+            iD (str): Tag ID.
+            rvec (numpy.ndarray): Rotation vector.
+            tvec (numpy.ndarray): Translation vector.
+
+        Returns:
+            dict: Updated box vertices in image coordinates.
+        """
         num_pts = len(self.plane_world_pts)
         self.pts_update = [None] * num_pts * 2
         self.__update_pts_w_id(iD)
@@ -320,6 +457,15 @@ class PlaneDetection:
         return box_verts_update
 
     def __compute_box_update(self,image, iD, rvec, tvec):
+        """
+        Computes and draws updated bounding box edges on the image.
+
+        Args:
+            image (numpy.ndarray): Image to draw on.
+            iD (str): Tag ID.
+            rvec (numpy.ndarray): Rotation vector.
+            tvec (numpy.ndarray): Translation vector.
+        """
         box_update = self.__update_img_pts(str(iD), rvec, tvec)
 
         cv2.line(image, 
@@ -362,6 +508,18 @@ class PlaneDetection:
 
     def __compute_plane_origin(self, frame, rvec,tvec, 
                         z_rot=1, cam_pose = False):
+        """
+        Draws the origin of a 3D plane on the image frame based on the rotation and 
+        translation vectors.
+
+        Args:
+            frame (numpy.ndarray): The image frame on which to draw the plane origin.
+            rvec (numpy.ndarray): Rotation vector for the plane.
+            tvec (numpy.ndarray): Translation vector for the plane.
+            z_rot (float, optional): Scaling factor for the Z-axis. Defaults to 1.
+            cam_pose (bool, optional): If True, adjusts the camera pose representation. Defaults to False.
+
+        """
         world_points = np.array([
             6.0, 0.0, 0.0,
             0.0, 0.0, 0.0,
@@ -382,7 +540,19 @@ class PlaneDetection:
         cv2.putText(frame, 'Z', img_points[3], font, 0.5, (255,0,0), 2, cv2.LINE_AA)
         
     def compute_plane_pose(self, frame, w_updated_pts = False, w_up_plane = False):
-        
+        """
+        Computes the pose of the plane in 3D space using detected image points 
+        and their corresponding world points.
+
+        Args:
+            frame (numpy.ndarray): The image frame containing the detected markers.
+            w_updated_pts (bool, optional): If True, uses updated vertices for the computation. Defaults to False.
+            w_up_plane (bool, optional): If True, uses the top plane vertices instead of the base. Defaults to False.
+
+        Returns:
+            tuple: Rotation vector (numpy.ndarray) and translation vector (numpy.ndarray). 
+                   Returns (None, None) if not enough points are detected.
+        """
         plane_img_pts_detect = []
         plane_world_pts_detect = []
         box = self.box_verts_update if w_updated_pts else self.box_vertices
@@ -405,6 +575,13 @@ class PlaneDetection:
             return None, None 
 
     def detect_tags_3D(self, frame):
+        """
+        Detects ArUco markers in the frame, estimates their poses, and computes updated 
+        vertex positions of a box based on detected markers.
+
+        Args:
+            frame (numpy.ndarray): The input image frame for detecting markers.
+        """
         self.box_vertices = {}
         self.box_verts_update = {}
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
