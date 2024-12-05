@@ -33,7 +33,11 @@ This Python module provides a `PlanePoseEstimator` class that detects ArUco mark
 
 ---
 
-## Usage
+## Usage and examples
+Run the code:
+```bash
+python3 main.py
+```
 
 ### 1. Initialize the `PlanePoseEstimator`
 Ensure you have a calibrated camera and its parameters (intrinsic matrix and distortion coefficients) ready.
